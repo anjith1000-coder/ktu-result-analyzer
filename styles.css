@@ -791,7 +791,8 @@ tr:hover td {
   #btn-export-pdf,
   .scheme-select-wrapper,
   .btn,
-  .modal-backdrop {
+  .modal-backdrop,
+  .backlog-filter-control {
     display: none !important;
   }
 
@@ -966,6 +967,46 @@ table th[data-sort]:hover {
   display: inline-block;
   vertical-align: middle;
   transition: transform 0.2s ease;
+}
+
+/* Backlog/Supply Filter Styles */
+.backlog-filter-control {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  max-width: fit-content;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.backlog-filter-control label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.dashboard-select {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.55rem 0.85rem;
+  border-radius: 6px;
+  outline: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-width: 180px;
+  font-family: var(--font-body);
+  transition: var(--transition);
+}
+
+.dashboard-select:focus {
+  border-color: var(--accent-terracotta);
+  background: white;
 }
 
 

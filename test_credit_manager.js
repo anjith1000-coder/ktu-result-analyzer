@@ -14,7 +14,17 @@ global.document = {
     };
   },
   querySelectorAll: () => [],
-  addEventListener: () => {}
+  addEventListener: () => {},
+  createElement: (tagName) => {
+    return {
+      style: {},
+      setAttribute: () => {},
+      appendChild: () => {},
+      classList: { add: () => {}, remove: () => {} },
+      innerHTML: '',
+      textContent: ''
+    };
+  }
 };
 global.Chart = class {};
 global.pdfjsLib = { GlobalWorkerOptions: {} };
@@ -184,6 +194,87 @@ if (state.sortState.student.column !== 'sgpa' || state.sortState.student.directi
 }
 
 console.log('[PASS] Sorting engine correctly toggles column and direction state.');
+
+// Test 4: Backlog Department Filtering check
+console.log('\n--- TEST 4: BACKLOG DEPARTMENT FILTERING ---');
+// Setup test state with multiple branches
+state.students = [
+  { id: 'PRC22CS001', name: 'CS Student', branch: 'CS', grades: { 'MAT201': 'F' }, backlogs: 1, status: 'SUPPLY', sgpa: 2.5 },
+  { id: 'PRC22ME001', name: 'ME Student', branch: 'ME', grades: { 'MAT201': 'F' }, backlogs: 1, status: 'SUPPLY', sgpa: 2.0 },
+  { id: 'PRC22CS002', name: 'CS Student 2', branch: 'CS', grades: { 'MAT201': 'B' }, backlogs: 0, status: 'PASS', sgpa: 7.5 }
+];
+state.departments = {
+  'CS': { code: 'CS', name: 'Computer Science', appeared: 2, passed: 1, failed: 1, fullPass: 1, supply: 1, averageSgpa: 7.5 },
+  'ME': { code: 'ME', name: 'Mechanical', appeared: 1, passed: 0, failed: 1, fullPass: 0, supply: 1, averageSgpa: 0.0 }
+};
+
+let filterValue = 'CS';
+
+// We want to capture what gets rendered in tbodyMax
+const tbodyMaxContent = [];
+const mockTbodyMax = {
+  get innerHTML() { return ''; },
+  set innerHTML(val) { tbodyMaxContent.push(val); },
+  appendChild: (child) => {
+    tbodyMaxContent.push(child.innerHTML);
+  }
+};
+// We also want to capture tbodyDept elements
+const tbodyDeptContent = [];
+const mockTbodyDept = {
+  get innerHTML() { return ''; },
+  set innerHTML(val) { tbodyDeptContent.push(val); },
+  appendChild: (child) => {
+    tbodyDeptContent.push(child.innerHTML);
+  }
+};
+
+global.document.getElementById = (id) => {
+  if (id === 'backlogBranchFilter') {
+    return { value: filterValue };
+  }
+  if (id === 'table-body-backlogs-max') {
+    return mockTbodyMax;
+  }
+  if (id === 'table-body-backlogs-dept') {
+    return mockTbodyDept;
+  }
+  return {
+    innerHTML: '',
+    appendChild: () => {},
+    classList: { remove: () => {}, add: () => {} },
+    value: 'ALL',
+    querySelectorAll: () => {
+      return {
+        forEach: () => {}
+      };
+    }
+  };
+};
+
+renderBacklogsView();
+
+// Verify that only the CS student is listed in the max backlogs table
+console.log(`Rendered backlog students HTML check:`, tbodyMaxContent);
+const csRendered = tbodyMaxContent.some(html => html.includes('PRC22CS001'));
+const meRendered = tbodyMaxContent.some(html => html.includes('PRC22ME001'));
+
+if (csRendered && !meRendered) {
+  console.log('[PASS] Students Max Backlog correctly filtered by department.');
+} else {
+  console.error('[FAIL] Max backlogs filter logic error: CS rendered = ' + csRendered + ', ME rendered = ' + meRendered);
+  process.exit(1);
+}
+
+// Verify that only CS department row is in the department backlog stats
+const csDeptRendered = tbodyDeptContent.some(html => html.includes('<strong>CS</strong>'));
+const meDeptRendered = tbodyDeptContent.some(html => html.includes('<strong>ME</strong>'));
+if (csDeptRendered && !meDeptRendered) {
+  console.log('[PASS] Department backlog statistics correctly filtered by department.');
+} else {
+  console.error('[FAIL] Department backlog stats filter logic error: CS rendered = ' + csDeptRendered + ', ME rendered = ' + meDeptRendered);
+  process.exit(1);
+}
 
 // Restore original mocks
 global.document.querySelectorAll = originalQuerySelectorAll;

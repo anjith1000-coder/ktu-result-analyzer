@@ -195,6 +195,10 @@ function setupEventListeners() {
     renderStudentsTable();
   });
   document.getElementById('search-subject').addEventListener('input', renderSubjectsTable);
+  const backlogFilter = document.getElementById('backlogBranchFilter');
+  if (backlogFilter) {
+    backlogFilter.addEventListener('change', renderBacklogsView);
+  }
 
   // Global Credit Input listener
   document.addEventListener('input', function(e) {
@@ -647,15 +651,33 @@ function updateKPIs() {
 
 function populateDeptFilterOptions() {
   const select = document.getElementById('filter-student-dept');
-  select.innerHTML = '<option value="ALL">All Departments</option>';
+  if (select) {
+    select.innerHTML = '<option value="ALL">All Departments</option>';
+  }
+  
+  const backlogSelect = document.getElementById('backlogBranchFilter');
+  if (backlogSelect) {
+    backlogSelect.innerHTML = '<option value="ALL">All Departments</option>';
+  }
   
   // Get sorted list of department codes
   const codes = Object.keys(state.departments).sort();
   codes.forEach(code => {
-    const option = document.createElement('option');
-    option.value = code;
-    option.textContent = `${code} - ${branchNames[code] || 'Branch'}`;
-    select.appendChild(option);
+    const optionText = `${code} - ${branchNames[code] || 'Branch'}`;
+    
+    if (select) {
+      const option = document.createElement('option');
+      option.value = code;
+      option.textContent = optionText;
+      select.appendChild(option);
+    }
+    
+    if (backlogSelect) {
+      const option = document.createElement('option');
+      option.value = code;
+      option.textContent = optionText;
+      backlogSelect.appendChild(option);
+    }
   });
 }
 
@@ -1123,11 +1145,17 @@ function renderStudentsTable() {
 
 // --- TAB RENDER: BACKLOG / SUPPLY VIEW ---
 function renderBacklogsView() {
+  const filterVal = document.getElementById('backlogBranchFilter') ? document.getElementById('backlogBranchFilter').value : 'ALL';
+
   // 1. Fill Student Backlog Leaders Table
   const tbodyMax = document.getElementById('table-body-backlogs-max');
   tbodyMax.innerHTML = '';
 
-  const studentsWithBacklogs = state.students.filter(s => s.backlogs > 0);
+  const filteredStudents = filterVal === 'ALL' 
+    ? state.students 
+    : state.students.filter(s => s.branch === filterVal);
+
+  const studentsWithBacklogs = filteredStudents.filter(s => s.backlogs > 0);
   studentsWithBacklogs.sort((a, b) => b.backlogs - a.backlogs);
 
   const hasNames = Object.keys(state.nameMap).length > 0;
@@ -1167,6 +1195,8 @@ function renderBacklogsView() {
 
   const subjectAgg = {};
   state.students.forEach(student => {
+    if (filterVal !== 'ALL' && student.branch !== filterVal) return;
+    
     Object.keys(student.grades).forEach(subCode => {
       if (!subjectAgg[subCode]) {
         subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
@@ -1202,7 +1232,10 @@ function renderBacklogsView() {
   const tbodyDept = document.getElementById('table-body-backlogs-dept');
   tbodyDept.innerHTML = '';
 
-  const depts = Object.keys(state.departments).sort();
+  const depts = Object.keys(state.departments).sort().filter(branch => {
+    return filterVal === 'ALL' || branch === filterVal;
+  });
+  
   depts.forEach(branch => {
     let totalBacklogs = 0;
     let studentsWithSupply = 0;
