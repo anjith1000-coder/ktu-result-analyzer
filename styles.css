@@ -1009,5 +1009,27 @@ table th[data-sort]:hover {
   background: white;
 }
 
+.backlog-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1.5px solid var(--border-color);
+  padding-bottom: 1rem;
+}
+
+.backlog-card-header h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.backlog-card-header .backlog-filter-control {
+  margin-bottom: 0;
+}
+
 
 

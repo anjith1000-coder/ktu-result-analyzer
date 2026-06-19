@@ -127,6 +127,7 @@ function initSchemeConfig() {
 // Recalculate everything and refresh views when configuration updates
 function recalculateAndRefresh() {
   processParsedData();
+  populateDeptFilterOptions();
   renderActiveTab();
   updateKPIs();
 }
@@ -497,9 +498,6 @@ function parseKTUResultText(text) {
   document.getElementById('btn-export-excel').classList.remove('hidden');
   document.getElementById('btn-export-pdf').classList.remove('hidden');
 
-  // Populate department filter select
-  populateDeptFilterOptions();
-
   // Run stats calculations
   recalculateAndRefresh();
 }
@@ -653,6 +651,9 @@ function populateDeptFilterOptions() {
   const filterSelect = document.getElementById('backlogBranchFilter');
   const studentSelect = document.getElementById('filter-student-dept');
 
+  const prevFilterVal = filterSelect ? filterSelect.value : 'ALL';
+  const prevStudentVal = studentSelect ? studentSelect.value : 'ALL';
+
   if (filterSelect) {
     filterSelect.innerHTML = '<option value="ALL">Available Departments</option>';
   }
@@ -690,6 +691,14 @@ function populateDeptFilterOptions() {
       studentSelect.appendChild(option);
     }
   });
+
+  // Restore selection if option still exists
+  if (filterSelect && filterSelect.querySelector(`option[value="${prevFilterVal}"]`)) {
+    filterSelect.value = prevFilterVal;
+  }
+  if (studentSelect && studentSelect.querySelector(`option[value="${prevStudentVal}"]`)) {
+    studentSelect.value = prevStudentVal;
+  }
 }
 
 // Switch render views depending on current active tab
@@ -1777,7 +1786,6 @@ function loadDemoMockData() {
   document.getElementById('btn-export-excel').classList.remove('hidden');
   document.getElementById('btn-export-pdf').classList.remove('hidden');
 
-  populateDeptFilterOptions();
   recalculateAndRefresh();
   
   hideLoading();

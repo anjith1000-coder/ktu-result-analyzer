@@ -270,18 +270,18 @@
 
       <!-- TAB 5: BACKLOG / SUPPLY ANALYSIS -->
       <div id="tab-backlog" class="tab-content hidden">
-        <div class="backlog-filter-control">
-          <label for="backlogBranchFilter">Filter by Department:</label>
-          <select id="backlogBranchFilter" class="dashboard-select">
-            <option value="ALL">Available Departments</option>
-          </select>
-        </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
           
           <!-- Column 1: Students with Maximum Backlogs -->
           <div class="glass-panel table-card" style="margin-bottom: 0;">
-            <div class="table-header-row">
-              <h3>Students with Maximum Backlogs</h3>
+            <div class="backlog-card-header">
+              <h2>Students with Maximum Backlogs</h2>
+              <div class="backlog-filter-control">
+                <label for="backlogBranchFilter">Filter by Department:</label>
+                <select id="backlogBranchFilter" class="dashboard-select">
+                  <option value="ALL">Available Departments</option>
+                </select>
+              </div>
             </div>
             <div class="table-wrapper">
               <table>
