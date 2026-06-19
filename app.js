@@ -657,7 +657,7 @@ function populateDeptFilterOptions() {
   
   const backlogSelect = document.getElementById('backlogBranchFilter');
   if (backlogSelect) {
-    backlogSelect.innerHTML = '<option value="ALL">All Departments</option>';
+    backlogSelect.innerHTML = '<option value="ALL">Available Departments</option>';
   }
   
   // Get sorted list of department codes
