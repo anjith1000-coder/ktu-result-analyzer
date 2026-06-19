@@ -90,6 +90,13 @@ const defaultGrades = {
   '2024': { 'S': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7.5, 'C+': 7, 'C': 6.5, 'D': 6, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
 };
 
+function getGradePoints(grade, scheme) {
+  const g = (grade || '').toUpperCase().trim();
+  const s = scheme || state.scheme || '2019';
+  const pointsMap = defaultGrades[s] || defaultGrades['2019'];
+  return pointsMap[g] !== undefined ? pointsMap[g] : 0.0;
+}
+
 // Initialize the Application
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -400,6 +407,29 @@ function parseKTUResultText(text) {
     return;
   }
 
+  // Detect scheme dynamically from the parsed students' registration year
+  let detectedScheme = state.scheme; // default to active UI scheme
+  if (rawStudents.length > 0) {
+    const years = rawStudents.map(s => parseInt(s.year) || 0);
+    const has24 = years.some(y => y >= 24);
+    const has15to18 = years.some(y => y >= 15 && y <= 18);
+    if (has24) {
+      detectedScheme = '2024';
+    } else if (has15to18) {
+      detectedScheme = '2015';
+    } else if (years.some(y => y >= 19 && y <= 23)) {
+      detectedScheme = '2019';
+    }
+  }
+
+  // Update state and UI scheme select to match the detected scheme
+  state.scheme = detectedScheme;
+  const selectScheme = document.getElementById('select-scheme');
+  if (selectScheme) {
+    selectScheme.value = detectedScheme;
+  }
+  initSchemeConfig();
+
   // 3. Match Grades for each Student
   state.students = [];
   for (let i = 0; i < rawStudents.length; i++) {
@@ -484,13 +514,7 @@ function processParsedData() {
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      let points = state.gradePoints[grade] || 0;
-      if (!points && grade === 'S' && ['2019', '2024'].includes(state.scheme)) {
-        points = 10;
-      }
-      if (!points && grade === 'O' && state.scheme === '2015') {
-        points = 10;
-      }
+      let points = getGradePoints(grade, state.scheme);
       earnedGradePoints += points * credit;
       totalCredits += credit;
     });
@@ -1179,7 +1203,7 @@ window.viewStudentDetails = function(studentId) {
     const grade = student.grades[subCode];
     const name = state.subjects[subCode] || 'Subject Course';
     const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
-    const points = state.gradePoints[grade] || 0;
+    const points = getGradePoints(grade, state.scheme);
 
     const gClass = grade.toLowerCase().replace('+', 'plus');
 
