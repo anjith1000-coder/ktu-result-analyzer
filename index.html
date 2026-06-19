@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APJ KTU Result Analyzer</title>
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- CDNs for Required Libraries -->
+  <!-- PDF.js for client-side PDF parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (XLSX) for high-fidelity Excel exports -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- html2pdf.js for client-side PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Application Header -->
+    <header>
+      <div>
+        <h1 id="app-title">APJ KTU Result Analyzer</h1>
+        <p class="subtitle" id="app-subtitle">Transform official university marksheets into actionable academic insights</p>
+      </div>
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <div class="scheme-select-wrapper" style="display: flex; align-items: center; gap: 0.5rem; background: var(--panel-bg); border: 1px solid var(--border-color); padding: 0.55rem 0.75rem; border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);">
+          <label for="select-scheme" style="font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">Scheme:</label>
+          <select id="select-scheme" style="background: none; border: none; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; color: var(--accent-olive); outline: none; cursor: pointer;">
+            <option value="2015">2015 Scheme</option>
+            <option value="2019" selected>2019 Scheme</option>
+            <option value="2024">2024 Scheme</option>
+          </select>
+        </div>
+        <button id="btn-mock-data" class="btn btn-secondary">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          Demo Mock Data
+        </button>
+        <button id="btn-export-excel" class="btn btn-primary hidden">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1m-4-4-4 4m0 0-4-4m4 4V4"></path></svg>
+          Export Excel
+        </button>
+        <button id="btn-export-pdf" class="btn btn-accent hidden">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 10v6m0 0-3-3m3 3 3-3m2 8H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l7 7v7a2 2 0 0 1-2 2z"></path></svg>
+          Export PDF
+        </button>
+      </div>
+    </header>
+
+    <!-- Upload Panel & File Status -->
+    <section class="upload-grid">
+      <!-- Drag and drop zone -->
+      <div id="dropzone-result" class="dropzone glass-panel">
+        <div class="upload-icon">📄</div>
+        <h3 style="font-family: var(--font-display); font-size: 1.25rem; margin-bottom: 0.25rem;">Drop KTU Result PDF Here</h3>
+        <p style="color: var(--text-secondary); font-size: 0.95rem;">or click to browse from your device (PDF, TXT, or CSV)</p>
+        <span>Supports multi-page official college results, branch-wise PDFs, and revaluation sheets.</span>
+        <input type="file" id="file-input-result" accept=".pdf,.txt,.csv" style="display: none;" multiple>
+      </div>
+
+      <!-- Side configuration: Name mapping & statuses -->
+      <div class="glass-panel side-panel">
+        <h3>Input Management</h3>
+        
+        <!-- Optional Student Name Mapping upload -->
+        <div id="dropzone-names" class="dropzone" style="padding: 1.5rem 1rem; border-width: 1px; border-style: solid;">
+          <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">👥</div>
+          <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0;">Name Mapping (Optional)</p>
+          <span style="font-size: 0.75rem;">Upload Excel or CSV mapping Roll Nos to Names</span>
+          <input type="file" id="file-input-names" accept=".csv,.xlsx,.xls" style="display: none;">
+        </div>
+
+        <div id="file-status-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 120px; overflow-y: auto;">
+          <div class="file-status-item" id="status-result">
+            <span>Result Marksheet:</span>
+            <span class="status-badge pending" id="badge-result">No File</span>
+          </div>
+          <div class="file-status-item" id="status-names">
+            <span>Name Mappings:</span>
+            <span class="status-badge pending" id="badge-names">None</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analysis Results Section (Only visible after file upload) -->
+    <main id="analysis-section" class="hidden">
+      
+      <!-- Tab Bar Navigation -->
+      <nav class="tabs-container">
+        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+        <button class="tab-btn" data-tab="department">Department-wise</button>
+        <button class="tab-btn" data-tab="subject">Subject-wise</button>
+        <button class="tab-btn" data-tab="student">Student Performance</button>
+        <button class="tab-btn" data-tab="backlog">Backlog / Supply</button>
+      </nav>
+
+      <!-- TAB 1: DASHBOARD -->
+      <div id="tab-dashboard" class="tab-content">
+        <div class="dashboard-metrics">
+          <div class="glass-panel metric-card cyan">
+            <div class="metric-label">Appeared Students</div>
+            <div class="metric-value" id="kpi-appeared">0</div>
+            <div class="metric-sub" id="kpi-appeared-sub">Across all departments</div>
+          </div>
+          <div class="glass-panel metric-card success">
+            <div class="metric-label">Overall Pass Rate</div>
+            <div class="metric-value" id="kpi-pass-rate">0.0%</div>
+            <div class="metric-sub" id="kpi-pass-rate-sub">Passed all subjects</div>
+          </div>
+          <div class="glass-panel metric-card danger">
+            <div class="metric-label">Supply/Backlog Students</div>
+            <div class="metric-value" id="kpi-failed">0</div>
+            <div class="metric-sub" id="kpi-failed-sub">At least one fail/incomplete</div>
+          </div>
+          <div class="glass-panel metric-card warning">
+            <div class="metric-label">Top Branch</div>
+            <div class="metric-value" id="kpi-top-branch">N/A</div>
+            <div class="metric-sub" id="kpi-top-branch-sub">Highest pass percentage</div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="glass-panel chart-card">
+            <h3>Department-wise Pass Percentage</h3>
+            <div class="chart-container">
+              <canvas id="chart-dept-pass"></canvas>
+            </div>
+          </div>
+          <div class="glass-panel chart-card">
+            <h3>Subject-wise Failure Rate</h3>
+            <div class="chart-container">
+              <canvas id="chart-subject-fail"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="glass-panel chart-card">
+            <h3>Consolidated Grade Distribution</h3>
+            <div class="chart-container">
+              <canvas id="chart-grade-dist"></canvas>
+            </div>
+          </div>
+          <div class="glass-panel chart-card">
+            <h3>Highest Backlogs by Department</h3>
+            <div class="chart-container">
+              <canvas id="chart-dept-backlogs"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: DEPARTMENT-WISE ANALYSIS -->
+      <div id="tab-department" class="tab-content hidden">
+        <div class="glass-panel table-card">
+          <div class="table-header-row">
+            <h3>Department Academic Standings</h3>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 80px; text-align: center;">Rank</th>
+                  <th>Branch Code</th>
+                  <th>Department Name</th>
+                  <th style="text-align: center;">Appeared</th>
+                  <th style="text-align: center;">Full Pass</th>
+                  <th style="text-align: center;">With Supply</th>
+                  <th style="text-align: center;">Pass %</th>
+                  <th style="text-align: center;">Average SGPA</th>
+                </tr>
+              </thead>
+              <tbody id="table-body-dept">
+                <!-- Dynamically generated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: SUBJECT-WISE ANALYSIS -->
+      <div id="tab-subject" class="tab-content hidden">
+        <div class="glass-panel table-card">
+          <div class="table-header-row">
+            <h3>Subject Analysis and Difficulties</h3>
+            <div class="filter-bar">
+              <div class="search-input-group">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-subject" class="search-input" placeholder="Search subject code or name...">
+              </div>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject Code</th>
+                  <th>Subject Name</th>
+                  <th style="text-align: center;">Registered</th>
+                  <th style="text-align: center;">Passed</th>
+                  <th style="text-align: center;">Failed</th>
+                  <th style="text-align: center;">Pass %</th>
+                  <th>Grade Spread (O - F)</th>
+                </tr>
+              </thead>
+              <tbody id="table-body-subject">
+                <!-- Dynamically generated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: STUDENT PERFORMANCE -->
+      <div id="tab-student" class="tab-content hidden">
+        <div class="glass-panel table-card">
+          <div class="table-header-row">
+            <h3>Student Performance Directory</h3>
+            <div class="filter-bar">
+              <div class="search-input-group">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-student" class="search-input" placeholder="Search Roll No or Name...">
+              </div>
+              <select id="filter-student-dept" class="select-filter">
+                <option value="ALL">All Departments</option>
+              </select>
+              <select id="filter-student-status" class="select-filter">
+                <option value="ALL">All Statuses</option>
+                <option value="PASS">Full Pass</option>
+                <option value="SUPPLY">With Supply</option>
+              </select>
+              <select id="sort-student" class="select-filter">
+                <option value="ROLL_ASC">Sort by Roll No (Asc)</option>
+                <option value="SGPA_DESC">Sort by SGPA (Highest)</option>
+                <option value="SGPA_ASC">Sort by SGPA (Lowest)</option>
+                <option value="BACK_DESC">Sort by Backlogs (Highest)</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 80px; text-align: center;">Rank</th>
+                  <th>Roll No</th>
+                  <th id="th-student-name">Name</th>
+                  <th style="text-align: center;">Branch</th>
+                  <th style="text-align: center;">Passed / Total</th>
+                  <th style="text-align: center;">Supply Count</th>
+                  <th style="text-align: center;">SGPA</th>
+                  <th style="text-align: center;">Status</th>
+                  <th style="width: 100px; text-align: center;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="table-body-student">
+                <!-- Dynamically generated -->
+              </tbody>
+            </table>
+          </div>
+          <div class="sgpa-disclaimer-banner">
+            <span>⚠️</span>
+            <p><strong>Note:</strong> The calculated SGPA is an approximate value and may not be 100% correct compared to official university sheets.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: BACKLOG / SUPPLY ANALYSIS -->
+      <div id="tab-backlog" class="tab-content hidden">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+          
+          <!-- Column 1: Students with Maximum Backlogs -->
+          <div class="glass-panel table-card" style="margin-bottom: 0;">
+            <div class="table-header-row">
+              <h3>Students with Maximum Backlogs</h3>
+            </div>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Roll No</th>
+                    <th id="th-backlog-name">Name</th>
+                    <th style="text-align: center;">Branch</th>
+                    <th style="text-align: center;">Backlog Count</th>
+                    <th>Failed Subjects</th>
+                  </tr>
+                </thead>
+                <tbody id="table-body-backlogs-max">
+                  <!-- Dynamically generated -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Column 2: Subject Failures & Department Backlogs -->
+          <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            
+            <div class="glass-panel table-card" style="margin-bottom: 0;">
+              <div class="table-header-row">
+                <h3>Top Difficult Subjects (Highest Failures)</h3>
+              </div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Subject Code</th>
+                      <th>Subject Name</th>
+                      <th style="text-align: center;">Failures</th>
+                      <th style="text-align: center;">Fail Rate %</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-body-backlogs-subjects">
+                    <!-- Dynamically generated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="glass-panel table-card" style="margin-bottom: 0;">
+              <div class="table-header-row">
+                <h3>Department-wise Backlog Statistics</h3>
+              </div>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Branch</th>
+                      <th>Department Name</th>
+                      <th style="text-align: center;">Total Backlogs</th>
+                      <th style="text-align: center;">Students with Supply</th>
+                      <th style="text-align: center;">Avg Backlogs/Student</th>
+                    </tr>
+                  </thead>
+                  <tbody id="table-body-backlogs-dept">
+                    <!-- Dynamically generated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Empty State (Shown before upload) -->
+    <section id="empty-state-section" class="glass-panel empty-state">
+      <div class="empty-state-icon">📊</div>
+      <h3>No Data Loaded</h3>
+      <p>Please upload your college's official APJ KTU result PDF or click "Demo Mock Data" to populate the dashboard with realistic test data instantly.</p>
+    </section>
+
+    <!-- FOOTER -->
+    <footer style="margin-top: 4rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+      <p>&copy; 2026 APJ KTU Result Analyzer Dashboard. Built with HTML5, Vanilla CSS, PDF.js, Chart.js, and SheetJS.</p>
+    </footer>
+
+  </div>
+
+  <!-- DETAILS MODAL -->
+  <div class="modal-backdrop" id="details-modal">
+    <div class="glass-panel modal-content">
+      <button class="modal-close" id="btn-modal-close">&times;</button>
+      
+      <h2 id="modal-title" style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Student Details</h2>
+      
+      <!-- Student Summary stats -->
+      <div class="detail-grid" id="modal-summary-grid">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div class="sgpa-disclaimer-banner">
+        <span>⚠️</span>
+        <p><strong>Note:</strong> The calculated SGPA is an approximate value and may not be 100% correct compared to official university sheets.</p>
+      </div>
+      
+      <!-- Grades table -->
+      <h3 style="font-family: var(--font-display); font-size: 1.1rem; margin: 1.5rem 0 0.5rem 0;">Academic Record</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Subject Code</th>
+              <th>Subject Name</th>
+              <th style="text-align: center;">Credits</th>
+              <th style="text-align: center;">Grade</th>
+              <th style="text-align: center;">Grade Points</th>
+            </tr>
+          </thead>
+          <tbody id="modal-table-body">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- (Export modal removed) -->
+
+  <!-- Core JavaScript Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

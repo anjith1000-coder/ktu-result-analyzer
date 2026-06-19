@@ -1,0 +1,2 @@
+# This project runs completely client-side in the browser and does not have third-party Python dependencies.
+# The server.py script uses standard Python libraries only.
