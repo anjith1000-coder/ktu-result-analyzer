@@ -9,9 +9,57 @@ const state = {
   nameMap: {},        // Map of roll number -> student name
   scheme: '2019',     // KTU scheme ('2019' or '2015')
   gradePoints: {},    // Grade -> point value map
-  customCredits: {},  // Subject code -> credit override map
+  customCredits: {},  // Subject code -> credit override map (legacy, replaced by globalCreditsMap)
   charts: {}          // Active Chart.js instances (to destroy before re-rendering)
 };
+
+const globalCreditsMap = {};
+
+function getInitialDefaultCredits(courseCode, scheme) {
+  if (!courseCode) return 3;
+  const code = courseCode.toUpperCase().trim();
+  
+  if (scheme === '2019') {
+    if (code.startsWith('MAT')) return 4;
+    if (code.startsWith('HUN')) return 2;
+    if (code.startsWith('MCN')) return 0;
+    
+    if (code.length >= 3) {
+      const third = code[2];
+      if (third === 'L' || third === 'P') return 1;
+      if (third === 'T') return 3;
+    }
+    return 3;
+  }
+  
+  if (scheme === '2024') {
+    // Step 1: Lab Detection (Highest Priority)
+    if (code.length >= 5 && code[4] === 'L') {
+      const numStr = code.substring(5, 8);
+      if (numStr.length === 3) {
+        const firstChar = numStr[0];
+        if (firstChar === '1' || firstChar === '2') return 1;
+        if (firstChar >= '3') return 2;
+      }
+    }
+    
+    // Step 2: Category Prefix Rules (First 2 characters)
+    const prefix2 = code.substring(0, 2);
+    if (prefix2 === 'PC' || prefix2 === 'PB') return 4;
+    if (prefix2 === 'PE') return 3;
+    
+    // Step 3: Keyword Track Matching
+    if (code.includes('MAT')) return 3;
+    if (code.includes('PHT') || code.includes('CYT')) return 4;
+    if (code.includes('HUT')) return 2;
+    if (code.includes('EST')) return 3;
+    
+    // Step 4: Default Fallback
+    return 3;
+  }
+  
+  return 3;
+}
 
 // Branch Code to Human-readable Name Map
 const branchNames = {
@@ -69,6 +117,10 @@ function recalculateAndRefresh() {
   updateKPIs();
 }
 
+function recalculateEverything() {
+  recalculateAndRefresh();
+}
+
 // Setup Drag & Drop and interactive listeners
 function setupEventListeners() {
   // Scheme Change
@@ -116,17 +168,26 @@ function setupEventListeners() {
   document.getElementById('filter-student-status').addEventListener('change', renderStudentsTable);
   document.getElementById('sort-student').addEventListener('change', renderStudentsTable);
   document.getElementById('search-subject').addEventListener('input', renderSubjectsTable);
+
+  // Global Credit Input listener
+  document.addEventListener('input', function(e) {
+    if (e.target.classList.contains('credit-input')) {
+      const subjectCode = e.target.dataset.subject;
+      const newValue = parseInt(e.target.value) || 0;
+      globalCreditsMap[subjectCode] = newValue;
+      recalculateEverything();
+    }
+  });
 }
 
-// Parses "MAT416:3, MED416:4" -> state.customCredits map
+// Parses "MAT416:3, MED416:4" -> globalCreditsMap map
 function parseCustomCredits(str) {
-  state.customCredits = {};
   if (!str) return;
   const parts = str.split(',');
   parts.forEach(part => {
     const [sub, cred] = part.split(':');
     if (sub && cred) {
-      state.customCredits[sub.trim().toUpperCase()] = parseFloat(cred.trim()) || 4;
+      globalCreditsMap[sub.trim().toUpperCase()] = parseInt(cred.trim()) || 3;
     }
   });
 }
@@ -391,11 +452,17 @@ function parseKTUResultText(text) {
 // ----------------------------------------------------
 
 function processParsedData() {
-  const defaultCreditsEl = document.getElementById('input-default-credits');
-  const defaultCred = defaultCreditsEl ? (parseFloat(defaultCreditsEl.value) || 4) : 4;
-  
   // Reset aggregates
   state.departments = {};
+  
+  // Initialize default credits in globalCreditsMap for any new parsed subjects
+  state.students.forEach(student => {
+    Object.keys(student.grades).forEach(subCode => {
+      if (globalCreditsMap[subCode] === undefined) {
+        globalCreditsMap[subCode] = getInitialDefaultCredits(subCode, state.scheme);
+      }
+    });
+  });
   
   // 1. Calculate individual SGPA and Backlog info
   state.students.forEach(student => {
@@ -407,7 +474,7 @@ function processParsedData() {
     
     Object.keys(student.grades).forEach(subCode => {
       const grade = student.grades[subCode];
-      const credit = state.customCredits[subCode] !== undefined ? state.customCredits[subCode] : defaultCred;
+      const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       
       totalSubjects++;
       if (['F', 'FE', 'I'].includes(grade)) {
@@ -851,10 +918,22 @@ function renderSubjectsTable() {
       }
     });
 
+    const currentCredits = globalCreditsMap[sub.code] !== undefined ? globalCreditsMap[sub.code] : getInitialDefaultCredits(sub.code, state.scheme);
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="subject-badge">${sub.code}</span></td>
       <td><strong>${sub.name}</strong></td>
+      <td style="text-align: center;">
+        <input 
+          type="number" 
+          min="0" 
+          max="5" 
+          class="credit-input" 
+          data-subject="${sub.code}" 
+          value="${currentCredits}"
+        >
+      </td>
       <td style="text-align: center;">${sub.registered}</td>
       <td style="text-align: center; color: var(--success); font-weight: 500;">${sub.passed}</td>
       <td style="text-align: center; color: ${sub.failed > 0 ? 'var(--danger)' : 'var(--text-muted)'};">${sub.failed}</td>
@@ -1063,9 +1142,6 @@ window.viewStudentDetails = function(studentId) {
   const student = state.students.find(s => s.id === studentId);
   if (!student) return;
 
-  const defaultCreditsEl = document.getElementById('input-default-credits');
-  const defaultCred = defaultCreditsEl ? (parseFloat(defaultCreditsEl.value) || 4) : 4;
-
   document.getElementById('modal-title').textContent = `${student.name} - Performance Profile`;
   
   const summaryGrid = document.getElementById('modal-summary-grid');
@@ -1102,7 +1178,7 @@ window.viewStudentDetails = function(studentId) {
   Object.keys(student.grades).forEach(subCode => {
     const grade = student.grades[subCode];
     const name = state.subjects[subCode] || 'Subject Course';
-    const credits = state.customCredits[subCode] !== undefined ? state.customCredits[subCode] : defaultCred;
+    const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
     const points = state.gradePoints[grade] || 0;
 
     const gClass = grade.toLowerCase().replace('+', 'plus');

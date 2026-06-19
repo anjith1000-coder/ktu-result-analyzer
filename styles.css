@@ -874,4 +874,36 @@ tr:hover td {
   }
 }
 
+/* Interactive Subject Credit Manager Styles */
+.credit-input {
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  width: 50px;
+  padding: 0.25rem;
+  border-radius: 4px;
+  outline: none;
+  transition: var(--transition);
+}
+
+.credit-input:hover,
+.credit-input:focus {
+  border-color: var(--accent-terracotta);
+  background-color: rgba(203, 153, 126, 0.08);
+}
+
+.credit-input::-webkit-outer-spin-button,
+.credit-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.credit-input {
+  -moz-appearance: textfield;
+}
+
 
