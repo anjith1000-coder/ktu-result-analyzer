@@ -37,8 +37,8 @@ const branchNames = {
 
 // Default Grade Points Configuration
 const defaultGrades = {
-  '2015': { 'S': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2019': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
+  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
+  '2019': { 'S': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
   '2024': { 'S': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7.5, 'C+': 7, 'C': 6.5, 'D': 6, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
 };
 
@@ -417,7 +417,13 @@ function processParsedData() {
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      const points = state.gradePoints[grade] || 0;
+      let points = state.gradePoints[grade] || 0;
+      if (!points && grade === 'S' && ['2019', '2024'].includes(state.scheme)) {
+        points = 10;
+      }
+      if (!points && grade === 'O' && state.scheme === '2015') {
+        points = 10;
+      }
       earnedGradePoints += points * credit;
       totalCredits += credit;
     });
@@ -616,6 +622,23 @@ function renderDashboardCharts() {
   const gradeLabels = Object.keys(gradeCounts);
   const gradeValues = Object.values(gradeCounts);
 
+  const gradeColorsMap = {
+    'S': '#1d3557',
+    'O': '#1d3557',
+    'A+': '#2a9d8f',
+    'A': '#457b9d',
+    'B+': '#e9c46a',
+    'B': '#f4a261',
+    'C+': '#e76f51',
+    'C': '#f8ad9d',
+    'D': '#d3ab9e',
+    'P': '#a8dadc',
+    'F': '#e63946',
+    'FE': '#d62828',
+    'I': '#780000'
+  };
+  const chartColors = gradeLabels.map(label => gradeColorsMap[label] || '#cccccc');
+
   const ctxGradeDist = document.getElementById('chart-grade-dist').getContext('2d');
   state.charts.gradeDist = new Chart(ctxGradeDist, {
     type: 'doughnut',
@@ -623,17 +646,7 @@ function renderDashboardCharts() {
       labels: gradeLabels,
       datasets: [{
         data: gradeValues,
-        backgroundColor: [
-          '#1d3557', // S/O (Royal dark blue)
-          '#2a9d8f', // A+ (Teal green)
-          '#457b9d', // A (Steel blue)
-          '#e9c46a', // B+ (Amber yellow)
-          '#f4a261', // B (Warm orange)
-          '#e76f51', // C+ (Coral orange)
-          '#f8ad9d', // C (Soft peach)
-          '#d3ab9e', // P (Muted rose)
-          '#e63946'  // F/FE/I (Vibrant red)
-        ],
+        backgroundColor: chartColors,
         borderWidth: 1.5,
         borderColor: '#FAF8F5'
       }]
@@ -776,6 +789,12 @@ function renderDepartmentsTable() {
 
 // --- TAB RENDER: SUBJECTS ANALYSIS TABLE ---
 function renderSubjectsTable() {
+  const thSpread = document.getElementById('th-grade-spread');
+  if (thSpread) {
+    const topGrade = state.scheme === '2015' ? 'O' : 'S';
+    thSpread.textContent = `Grade Spread (${topGrade} - F)`;
+  }
+
   const tbody = document.getElementById('table-body-subject');
   tbody.innerHTML = '';
 
@@ -1455,7 +1474,8 @@ function loadDemoMockData() {
   ];
 
   const branches = ['CS', 'DS', 'AD', 'CY', 'AM', 'EC', 'ME'];
-  const gradesPool = ['O', 'A+', 'A', 'B+', 'B', 'C', 'P', 'F'];
+  const topGrade = state.scheme === '2015' ? 'O' : 'S';
+  const gradesPool = [topGrade, 'A+', 'A', 'B+', 'B', 'C', 'P', 'F'];
   const gradesWeight = [0.1, 0.15, 0.25, 0.2, 0.15, 0.08, 0.05, 0.02]; // realistic skew
 
   function getRandomGrade() {
