@@ -43,10 +43,15 @@ const defaultGrades = {
 };
 
 // Initialize the Application
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initSchemeConfig();
+    setupEventListeners();
+  });
+} else {
   initSchemeConfig();
   setupEventListeners();
-});
+}
 
 // Initialize Scheme configurations from dropdown selection
 function initSchemeConfig() {
@@ -417,11 +422,11 @@ function processParsedData() {
       totalCredits += credit;
     });
     
-    student.sgpa = totalCredits > 0 ? (earnedGradePoints / totalCredits) : 0.0;
     student.backlogs = backlogs;
     student.passedCount = passedSubjects;
     student.totalCount = totalSubjects;
     student.status = backlogs === 0 ? 'PASS' : 'SUPPLY';
+    student.sgpa = (student.status === 'PASS' && totalCredits > 0) ? (earnedGradePoints / totalCredits) : 0.0;
   });
 
   // Sort students by SGPA descending to assign class rank
@@ -458,6 +463,7 @@ function processParsedData() {
         fullPass: 0,
         supply: 0,
         totalSgpa: 0,
+        sgpaCount: 0,
         passPercentage: 0,
         averageSgpa: 0
       };
@@ -465,7 +471,10 @@ function processParsedData() {
     
     const d = state.departments[branch];
     d.appeared++;
-    d.totalSgpa += student.sgpa;
+    if (student.sgpa > 0) {
+      d.totalSgpa += student.sgpa;
+      d.sgpaCount++;
+    }
     
     if (student.status === 'PASS') {
       d.passed++;
@@ -480,7 +489,7 @@ function processParsedData() {
   Object.keys(state.departments).forEach(branch => {
     const d = state.departments[branch];
     d.passPercentage = d.appeared > 0 ? (d.passed / d.appeared) * 100 : 0;
-    d.averageSgpa = d.appeared > 0 ? (d.totalSgpa / d.appeared) : 0;
+    d.averageSgpa = d.sgpaCount > 0 ? (d.totalSgpa / d.sgpaCount) : 0;
   });
 }
 
@@ -882,6 +891,17 @@ function renderStudentsTable() {
     else if (stud.classRank === 2) badgeClass = "rank-2";
     else if (stud.classRank === 3) badgeClass = "rank-3";
 
+    let actionsHtml = "";
+    if (stud.backlogs > 0) {
+      const failedSubs = Object.keys(stud.grades)
+        .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
+        .map(code => `<span class="backlog-badge" style="background-color: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.75rem; font-family: monospace; font-weight: 600; margin-right: 0.25rem;">[${code}]</span>`)
+        .join('');
+      actionsHtml = `<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">${failedSubs} <button class="btn btn-accent" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="viewStudentDetails('${stud.id}')">View Details</button></div>`;
+    } else {
+      actionsHtml = `<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;"><span class="backlog-badge" style="background-color: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">✓ Clear</span> <button class="btn btn-accent" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="viewStudentDetails('${stud.id}')">View Details</button></div>`;
+    }
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="text-align: center;"><span class="rank-badge ${badgeClass}">${stud.classRank}</span></td>
@@ -897,7 +917,7 @@ function renderStudentsTable() {
         </span>
       </td>
       <td style="text-align: center;">
-        <button class="btn btn-accent" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="viewStudentDetails('${stud.id}')">View Details</button>
+        ${actionsHtml}
       </td>
     `;
     tbody.appendChild(tr);
@@ -1102,6 +1122,17 @@ function exportToExcelDirect() {
       const totalFailed = totalRegistered - totalPassed;
       const overallPassPct = totalRegistered > 0 ? ((totalPassed / totalRegistered) * 100).toFixed(2) : "0.00";
       
+      // Rule A: Calculate total institutional average SGPA as a true weighted average of valid SGPAs (excluding 0.00)
+      const validSgpas = state.students.filter(s => s.sgpa > 0).map(s => s.sgpa);
+      const totalValidSgpasSum = validSgpas.reduce((sum, val) => sum + val, 0);
+      const averageSgpaInstitutional = validSgpas.length > 0 ? (totalValidSgpasSum / validSgpas.length).toFixed(2) : "0.00";
+      
+      // Academic Standing Tiers (Passed Students Only)
+      const passingStudents = state.students.filter(s => s.status === 'PASS');
+      const distinctionCount = passingStudents.filter(s => s.sgpa >= 8.5).length;
+      const firstClassCount = passingStudents.filter(s => s.sgpa >= 7.0 && s.sgpa < 8.5).length;
+      const secondClassCount = passingStudents.filter(s => s.sgpa < 7.0).length;
+
       // Calculate departments standings
       const sortedDepts = Object.values(state.departments).sort((a, b) => b.passPercentage - a.passPercentage);
       let deptRows = "";
@@ -1113,6 +1144,7 @@ function exportToExcelDirect() {
             <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #608066; font-weight: bold;">${d.fullPass}</td>
             <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559;">${d.supply}</td>
             <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold;">${d.passPercentage.toFixed(2)}%</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #CB997E; font-weight: bold;">${d.averageSgpa.toFixed(2)}</td>
           </tr>
         `;
       });
@@ -1167,6 +1199,37 @@ function exportToExcelDirect() {
           </tr>
         `;
       });
+
+      // Calculate Subject Risk Matrix (Critical Subject Risk Directory)
+      const riskSubjects = subjectsList.filter(s => s.failed > 0).map(s => {
+        s.failPct = (s.failed / s.registered) * 100;
+        return s;
+      });
+      riskSubjects.sort((a, b) => b.failPct - a.failPct || b.failed - a.failed);
+
+      let riskRows = "";
+      if (riskSubjects.length === 0) {
+        riskRows = `
+          <tr>
+            <td colspan="6" style="border: 1px solid #CCCCCC; padding: 8px; text-align: center; font-style: italic;">No critical subject risks identified.</td>
+          </tr>
+        `;
+      } else {
+        riskSubjects.forEach((s, idx) => {
+          const deptPrefix = s.code.substring(0, 2).toUpperCase();
+          const deptName = branchNames[deptPrefix] || "General Science/Humanities";
+          riskRows += `
+            <tr>
+              <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
+              <td style="border: 1px solid #CCCCCC; padding: 8px;">${s.code}</td>
+              <td style="border: 1px solid #CCCCCC; padding: 8px;">${s.name}</td>
+              <td style="border: 1px solid #CCCCCC; padding: 8px;">${deptName}</td>
+              <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559; font-weight: bold;">${s.failed}</td>
+              <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold; color: #C62828;">${s.failPct.toFixed(2)}%</td>
+            </tr>
+          `;
+        });
+      }
       
       const excelTemplate = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1195,7 +1258,9 @@ function exportToExcelDirect() {
             .header-banner-3 { background-color: #FFC107; color: #000000; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; border: 1px solid #F57F17; }
             .section-header-stat { background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
             .section-header-dept { background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
+            .section-header-risk { background-color: #C62828; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
             .table-header { background-color: #0D47A1; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; }
+            .table-header-risk { background-color: #C62828; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; }
             .bold-text { font-weight: bold; background-color: #F5F5F5; }
             .number-cell { text-align: right; }
             .percent-cell { text-align: right; font-weight: bold; }
@@ -1242,14 +1307,43 @@ function exportToExcelDirect() {
               <td class="percent-cell" style="text-align: right; font-weight: bold;">${overallPassPct}%</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Average SGPA (Passed)</td>
+              <td class="number-cell" style="text-align: right; font-weight: bold; color: #E65100;">${averageSgpaInstitutional}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 10px;"></td></tr>
+
+            <!-- Academic Standing Tiers -->
+            <tr>
+              <td colspan="4" class="section-header-stat" style="background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt;">ACADEMIC STANDING TIERS (PASSED STUDENTS ONLY)</td>
+              <td colspan="3" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Distinction Tiers (SGPA >= 8.5)</td>
+              <td class="number-cell" style="text-align: right;">${distinctionCount}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">First Class Tiers (7.0 to 8.49)</td>
+              <td class="number-cell" style="text-align: right;">${firstClassCount}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Second Class Tiers (SGPA < 7.0)</td>
+              <td class="number-cell" style="text-align: right;">${secondClassCount}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
             
             <!-- Empty Spacer -->
             <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
             
             <!-- Department Table Header -->
             <tr>
-              <td colspan="5" class="section-header-dept" style="background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt;">DEPARTMENT-WISE PERFORMANCE ANALYSIS</td>
-              <td colspan="2" style="border:none;"></td>
+              <td colspan="6" class="section-header-dept" style="background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt;">DEPARTMENT-WISE PERFORMANCE ANALYSIS</td>
+              <td style="border:none;"></td>
             </tr>
             <tr class="table-header" style="background-color: #0D47A1; color: #FFFFFF; font-weight: bold;">
               <td>Department Name</td>
@@ -1257,7 +1351,8 @@ function exportToExcelDirect() {
               <td>Total Pass</td>
               <td>Total Fail</td>
               <td>Pass Percentage</td>
-              <td colspan="2" style="border:none;"></td>
+              <td>Average SGPA</td>
+              <td style="border:none;"></td>
             </tr>
             ${deptRows}
             
@@ -1278,6 +1373,25 @@ function exportToExcelDirect() {
               <td>Fail</td>
             </tr>
             ${subjectRows}
+
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
+
+            <!-- Subject Risk Matrix Header -->
+            <tr>
+              <td colspan="6" class="section-header-risk" style="background-color: #C62828; color: #FFFFFF; font-weight: bold; font-size: 12pt;">CRITICAL SUBJECT RISK DIRECTORY (HIGHEST FAILURE RATES)</td>
+              <td style="border:none;"></td>
+            </tr>
+            <tr class="table-header-risk" style="background-color: #C62828; color: #FFFFFF; font-weight: bold;">
+              <td>Rank</td>
+              <td>Subject Code</td>
+              <td>Subject Name</td>
+              <td>Department</td>
+              <td>Fail Count</td>
+              <td>Failure Rate %</td>
+              <td style="border:none;"></td>
+            </tr>
+            ${riskRows}
           </table>
         </body>
         </html>

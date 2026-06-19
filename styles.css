@@ -846,8 +846,31 @@ tr:hover td {
     display: table-header-group !important;
   }
   
-  h2, h3, .chart-card, .table-card {
+  h2, h3, .chart-card {
     page-break-inside: avoid !important;
+  }
+
+  .table-card,
+  .table-wrapper {
+    page-break-inside: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Flexbox & Grid Container fixes for Multi-page Print Layouts */
+  .charts-grid,
+  .dashboard-metrics,
+  #tab-backlog > div {
+    display: block !important;
+  }
+
+  .charts-grid > div,
+  .dashboard-metrics > div,
+  #tab-backlog > div > div {
+    width: 100% !important;
+    margin-bottom: 1.5rem !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 }
 
