@@ -650,33 +650,44 @@ function updateKPIs() {
 }
 
 function populateDeptFilterOptions() {
-  const select = document.getElementById('filter-student-dept');
-  if (select) {
-    select.innerHTML = '<option value="ALL">All Departments</option>';
+  const filterSelect = document.getElementById('backlogBranchFilter');
+  const studentSelect = document.getElementById('filter-student-dept');
+
+  if (filterSelect) {
+    filterSelect.innerHTML = '<option value="ALL">Available Departments</option>';
   }
-  
-  const backlogSelect = document.getElementById('backlogBranchFilter');
-  if (backlogSelect) {
-    backlogSelect.innerHTML = '<option value="ALL">Available Departments</option>';
+  if (studentSelect) {
+    studentSelect.innerHTML = '<option value="ALL">All Departments</option>';
   }
-  
-  // Get sorted list of department codes
-  const codes = Object.keys(state.departments).sort();
-  codes.forEach(code => {
-    const optionText = `${code} - ${branchNames[code] || 'Branch'}`;
+
+  // Extract departments directly from the keys used by the Department-wise analytics
+  let departmentsList = [];
+  if (typeof state !== 'undefined' && state.departments) {
+    departmentsList = Object.keys(state.departments);
+  } else if (typeof state !== 'undefined' && state.students) {
+    // Fallback: Group directly from processed student branch fields
+    departmentsList = [...new Set(state.students.map(s => s.branch).filter(Boolean))];
+  }
+
+  // Sort alphabetically (CS, EC, EE, ME)
+  departmentsList.sort();
+
+  // Dynamically append the options to the selection menus
+  departmentsList.forEach(dept => {
+    const value = dept.toUpperCase().trim();
+    const displayName = branchNames[value] ? `${value} - ${branchNames[value]}` : value;
     
-    if (select) {
+    if (filterSelect) {
       const option = document.createElement('option');
-      option.value = code;
-      option.textContent = optionText;
-      select.appendChild(option);
+      option.value = value;
+      option.textContent = displayName;
+      filterSelect.appendChild(option);
     }
-    
-    if (backlogSelect) {
+    if (studentSelect) {
       const option = document.createElement('option');
-      option.value = code;
-      option.textContent = optionText;
-      backlogSelect.appendChild(option);
+      option.value = value;
+      option.textContent = displayName;
+      studentSelect.appendChild(option);
     }
   });
 }
