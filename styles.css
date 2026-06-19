@@ -874,36 +874,99 @@ tr:hover td {
   }
 }
 
-/* Interactive Subject Credit Manager Styles */
-.credit-input {
-  border: 1px solid transparent;
-  background: transparent;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-align: center;
-  width: 50px;
-  padding: 0.25rem;
-  border-radius: 4px;
-  outline: none;
-  transition: var(--transition);
+/* Interactive Subject Credit Manager Styles - Slider UI */
+.credit-slider-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.25rem 0.5rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  width: 140px;
+  justify-content: center;
 }
 
-.credit-input:hover,
-.credit-input:focus {
-  border-color: var(--accent-terracotta);
-  background-color: rgba(203, 153, 126, 0.08);
-}
-
-.credit-input::-webkit-outer-spin-button,
-.credit-input::-webkit-inner-spin-button {
+.credit-slider {
   -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 6px;
+  background: var(--border-color);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
   margin: 0;
 }
 
-.credit-input {
-  -moz-appearance: textfield;
+.credit-slider:hover {
+  background: #B7B7A4;
 }
+
+.credit-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-terracotta);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.credit-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+.credit-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-terracotta);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.credit-slider::-moz-range-thumb:hover {
+  transform: scale(1.25);
+}
+
+.credit-value-badge {
+  display: inline-block;
+  min-width: 20px;
+  height: 20px;
+  line-height: 18px;
+  background: var(--accent-cream);
+  border: 1px solid var(--accent-terracotta);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 50%;
+}
+
+/* Universal Table Header Sorting Styles */
+table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+table th[data-sort]:hover {
+  background-color: rgba(107, 112, 92, 0.08) !important; /* olive tint */
+}
+
+.sort-arrow {
+  display: inline-block;
+  vertical-align: middle;
+  transition: transform 0.2s ease;
+}
+
 
 

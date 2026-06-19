@@ -10,7 +10,12 @@ const state = {
   scheme: '2019',     // KTU scheme ('2019' or '2015')
   gradePoints: {},    // Grade -> point value map
   customCredits: {},  // Subject code -> credit override map (legacy, replaced by globalCreditsMap)
-  charts: {}          // Active Chart.js instances (to destroy before re-rendering)
+  charts: {},         // Active Chart.js instances (to destroy before re-rendering)
+  sortState: {
+    dept: { column: 'passPercentage', direction: 'desc' },
+    subject: { column: 'failed', direction: 'desc' },
+    student: { column: 'classRank', direction: 'asc' }
+  }
 };
 
 const globalCreditsMap = {};
@@ -86,8 +91,8 @@ const branchNames = {
 // Default Grade Points Configuration
 const defaultGrades = {
   '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2019': { 'S': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2024': { 'S': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7.5, 'C+': 7, 'C': 6.5, 'D': 6, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
+  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 },
+  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
 };
 
 function getGradePoints(grade, scheme) {
@@ -102,10 +107,12 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initSchemeConfig();
     setupEventListeners();
+    setupTableSorting();
   });
 } else {
   initSchemeConfig();
   setupEventListeners();
+  setupTableSorting();
 }
 
 // Initialize Scheme configurations from dropdown selection
@@ -173,15 +180,31 @@ function setupEventListeners() {
   document.getElementById('search-student').addEventListener('input', renderStudentsTable);
   document.getElementById('filter-student-dept').addEventListener('change', renderStudentsTable);
   document.getElementById('filter-student-status').addEventListener('change', renderStudentsTable);
-  document.getElementById('sort-student').addEventListener('change', renderStudentsTable);
+  document.getElementById('sort-student').addEventListener('change', (e) => {
+    const val = e.target.value;
+    if (val === 'ROLL_ASC') {
+      state.sortState.student = { column: 'id', direction: 'asc' };
+    } else if (val === 'SGPA_DESC') {
+      state.sortState.student = { column: 'sgpa', direction: 'desc' };
+    } else if (val === 'SGPA_ASC') {
+      state.sortState.student = { column: 'sgpa', direction: 'asc' };
+    } else if (val === 'BACK_DESC') {
+      state.sortState.student = { column: 'backlogs', direction: 'desc' };
+    }
+    updateHeaderArrows('table-body-student');
+    renderStudentsTable();
+  });
   document.getElementById('search-subject').addEventListener('input', renderSubjectsTable);
 
   // Global Credit Input listener
   document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('credit-input')) {
+    if (e.target.classList.contains('credit-slider')) {
       const subjectCode = e.target.dataset.subject;
       const newValue = parseInt(e.target.value) || 0;
       globalCreditsMap[subjectCode] = newValue;
+      if (e.target.nextElementSibling && e.target.nextElementSibling.classList.contains('credit-value-badge')) {
+        e.target.nextElementSibling.textContent = newValue;
+      }
       recalculateEverything();
     }
   });
@@ -523,7 +546,7 @@ function processParsedData() {
     student.passedCount = passedSubjects;
     student.totalCount = totalSubjects;
     student.status = backlogs === 0 ? 'PASS' : 'SUPPLY';
-    student.sgpa = (student.status === 'PASS' && totalCredits > 0) ? (earnedGradePoints / totalCredits) : 0.0;
+    student.sgpa = (totalCredits > 0) ? (earnedGradePoints / totalCredits) : 0.0;
   });
 
   // Sort students by SGPA descending to assign class rank
@@ -568,7 +591,7 @@ function processParsedData() {
     
     const d = state.departments[branch];
     d.appeared++;
-    if (student.sgpa > 0) {
+    if (student.status === 'PASS' && student.sgpa > 0) {
       d.totalSgpa += student.sgpa;
       d.sgpaCount++;
     }
@@ -854,10 +877,34 @@ function renderDepartmentsTable() {
   const tbody = document.getElementById('table-body-dept');
   tbody.innerHTML = '';
 
-  const sortedDepts = Object.values(state.departments).sort((a, b) => b.passPercentage - a.passPercentage);
+  const col = state.sortState.dept.column;
+  const dir = state.sortState.dept.direction === 'asc' ? 1 : -1;
+
+  // Compute overall ranks based on passPercentage descending
+  const rankMap = {};
+  Object.values(state.departments)
+    .sort((a, b) => b.passPercentage - a.passPercentage)
+    .forEach((dept, idx) => {
+      rankMap[dept.code] = idx + 1;
+    });
+
+  const sortedDepts = Object.values(state.departments).sort((a, b) => {
+    let valA = a[col];
+    let valB = b[col];
+    
+    if (col === 'rank') {
+      valA = rankMap[a.code];
+      valB = rankMap[b.code];
+    }
+    
+    if (typeof valA === 'string') {
+      return valA.localeCompare(valB) * dir;
+    }
+    return (valA - valB) * dir;
+  });
   
-  sortedDepts.forEach((dept, idx) => {
-    const rank = idx + 1;
+  sortedDepts.forEach((dept) => {
+    const rank = rankMap[dept.code];
     let badgeClass = "rank-other";
     if (rank === 1) badgeClass = "rank-1";
     else if (rank === 2) badgeClass = "rank-2";
@@ -926,8 +973,26 @@ function renderSubjectsTable() {
     return sub.code.includes(searchQuery) || sub.name.toUpperCase().includes(searchQuery);
   });
 
-  // Sort by failure count descending
-  list.sort((a, b) => b.failed - a.failed);
+  const col = state.sortState.subject.column;
+  const dir = state.sortState.subject.direction === 'asc' ? 1 : -1;
+
+  list.sort((a, b) => {
+    let valA = a[col];
+    let valB = b[col];
+    
+    if (col === 'credits') {
+      valA = globalCreditsMap[a.code] !== undefined ? globalCreditsMap[a.code] : getInitialDefaultCredits(a.code, state.scheme);
+      valB = globalCreditsMap[b.code] !== undefined ? globalCreditsMap[b.code] : getInitialDefaultCredits(b.code, state.scheme);
+    } else if (col === 'passRate') {
+      valA = a.registered > 0 ? (a.passed / a.registered) * 100 : 0;
+      valB = b.registered > 0 ? (b.passed / b.registered) * 100 : 0;
+    }
+    
+    if (typeof valA === 'string') {
+      return valA.localeCompare(valB) * dir;
+    }
+    return (valA - valB) * dir;
+  });
 
   list.forEach(sub => {
     const passRate = sub.registered > 0 ? (sub.passed / sub.registered) * 100 : 0;
@@ -949,14 +1014,18 @@ function renderSubjectsTable() {
       <td><span class="subject-badge">${sub.code}</span></td>
       <td><strong>${sub.name}</strong></td>
       <td style="text-align: center;">
-        <input 
-          type="number" 
-          min="0" 
-          max="5" 
-          class="credit-input" 
-          data-subject="${sub.code}" 
-          value="${currentCredits}"
-        >
+        <div class="credit-slider-container">
+          <input 
+            type="range" 
+            min="0" 
+            max="6" 
+            step="1" 
+            class="credit-slider" 
+            data-subject="${sub.code}" 
+            value="${currentCredits}"
+          >
+          <span class="credit-value-badge">${currentCredits}</span>
+        </div>
       </td>
       <td style="text-align: center;">${sub.registered}</td>
       <td style="text-align: center; color: var(--success); font-weight: 500;">${sub.passed}</td>
@@ -976,26 +1045,32 @@ function renderStudentsTable() {
   const search = document.getElementById('search-student').value.toUpperCase();
   const deptFilter = document.getElementById('filter-student-dept').value;
   const statusFilter = document.getElementById('filter-student-status').value;
-  const sortBy = document.getElementById('sort-student').value;
 
   // Filter students
   let filtered = state.students.filter(student => {
-    const matchSearch = student.id.includes(search) || student.name.toUpperCase().includes(search);
+    const matchSearch = student.id.includes(search) || (student.name || '').toUpperCase().includes(search);
     const matchDept = deptFilter === 'ALL' || student.branch === deptFilter;
     const matchStatus = statusFilter === 'ALL' || student.status === statusFilter;
     return matchSearch && matchDept && matchStatus;
   });
 
-  // Sort students
-  if (sortBy === 'ROLL_ASC') {
-    filtered.sort((a, b) => a.id.localeCompare(b.id));
-  } else if (sortBy === 'SGPA_DESC') {
-    filtered.sort((a, b) => b.sgpa - a.sgpa);
-  } else if (sortBy === 'SGPA_ASC') {
-    filtered.sort((a, b) => a.sgpa - b.sgpa);
-  } else if (sortBy === 'BACK_DESC') {
-    filtered.sort((a, b) => b.backlogs - a.backlogs);
-  }
+  const col = state.sortState.student.column;
+  const dir = state.sortState.student.direction === 'asc' ? 1 : -1;
+
+  filtered.sort((a, b) => {
+    let valA = a[col];
+    let valB = b[col];
+    
+    if (col === 'passedCount') {
+      valA = a.passedCount / (a.totalCount || 1);
+      valB = b.passedCount / (b.totalCount || 1);
+    }
+    
+    if (typeof valA === 'string') {
+      return valA.localeCompare(valB) * dir;
+    }
+    return (valA - valB) * dir;
+  });
 
   const hasNames = Object.keys(state.nameMap).length > 0;
   const thName = document.getElementById('th-student-name');
@@ -1007,7 +1082,7 @@ function renderStudentsTable() {
     }
   }
 
-  filtered.forEach((stud, index) => {
+  filtered.forEach((stud) => {
     let badgeClass = "rank-other";
     if (stud.classRank === 1) badgeClass = "rank-1";
     else if (stud.classRank === 2) badgeClass = "rank-2";
@@ -1696,4 +1771,91 @@ function showLoading() {
 function hideLoading() {
   const loading = document.getElementById('page-loading');
   if (loading) loading.remove();
+}
+
+function setupTableSorting() {
+  document.querySelectorAll('table th[data-sort]').forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      const table = th.closest ? th.closest('table') : (th.parentElement && th.parentElement.parentElement && th.parentElement.parentElement.parentElement ? th.parentElement.parentElement.parentElement : null);
+      if (!table) return;
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+      const tbodyId = tbody.id;
+      const sortBy = th.dataset.sort;
+      
+      let sortKey = '';
+      if (tbodyId === 'table-body-dept') sortKey = 'dept';
+      else if (tbodyId === 'table-body-subject') sortKey = 'subject';
+      else if (tbodyId === 'table-body-student') sortKey = 'student';
+      else return;
+      
+      const current = state.sortState[sortKey];
+      if (current.column === sortBy) {
+        current.direction = current.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        current.column = sortBy;
+        current.direction = 'desc';
+      }
+      
+      // Update drop-down for students if clicked column matches
+      if (sortKey === 'student') {
+        const select = document.getElementById('sort-student');
+        if (select) {
+          if (sortBy === 'id' && current.direction === 'asc') {
+            select.value = 'ROLL_ASC';
+          } else if (sortBy === 'sgpa' && current.direction === 'desc') {
+            select.value = 'SGPA_DESC';
+          } else if (sortBy === 'sgpa' && current.direction === 'asc') {
+            select.value = 'SGPA_ASC';
+          } else if (sortBy === 'backlogs' && current.direction === 'desc') {
+            select.value = 'BACK_DESC';
+          } else {
+            select.selectedIndex = -1;
+          }
+        }
+      }
+      
+      updateHeaderArrows(tbodyId);
+      
+      if (sortKey === 'dept') renderDepartmentsTable();
+      else if (sortKey === 'subject') renderSubjectsTable();
+      else if (sortKey === 'student') renderStudentsTable();
+    });
+  });
+  
+  // Set initial arrows
+  updateHeaderArrows('table-body-dept');
+  updateHeaderArrows('table-body-subject');
+  updateHeaderArrows('table-body-student');
+}
+
+function updateHeaderArrows(tbodyId) {
+  let sortKey = '';
+  if (tbodyId === 'table-body-dept') sortKey = 'dept';
+  else if (tbodyId === 'table-body-subject') sortKey = 'subject';
+  else if (tbodyId === 'table-body-student') sortKey = 'student';
+  else return;
+  
+  const current = state.sortState[sortKey];
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const table = tbody.closest ? tbody.closest('table') : (tbody.parentElement ? tbody.parentElement : null);
+  if (!table) return;
+  
+  table.querySelectorAll('th[data-sort]').forEach(th => {
+    th.querySelectorAll('.sort-arrow').forEach(el => el.remove());
+    th.classList.remove('sort-asc', 'sort-desc');
+    
+    if (th.dataset.sort === current.column) {
+      th.classList.add(current.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.style.marginLeft = '5px';
+      arrow.style.fontSize = '0.7rem';
+      arrow.style.color = 'var(--accent-terracotta)';
+      arrow.textContent = current.direction === 'asc' ? '▲' : '▼';
+      th.appendChild(arrow);
+    }
+  });
 }
