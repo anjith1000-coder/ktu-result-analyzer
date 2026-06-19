@@ -20,6 +20,7 @@ const branchNames = {
   'AD': 'Artificial Intelligence & Data Science',
   'CY': 'Computer Science & Engineering (Cyber Security)',
   'AM': 'Artificial Intelligence & Machine Learning',
+  'CSOT': 'Computer Science & Engineering (IoT)',
   'EC': 'Electronics & Communication Engineering',
   'EE': 'Electrical & Electronics Engineering',
   'ME': 'Mechanical Engineering',
@@ -313,7 +314,7 @@ function parseKTUResultText(text) {
   // Group 3: Admission year (2 digits)
   // Group 4: Department/Branch (2 uppercase letters)
   // Group 5: Roll index (3 digits)
-  const studentRegex = /\b(L?)([A-Z]{3})(\d{2})([A-Z]{2})(\d{3})\b/g;
+  const studentRegex = /\b(L?)([A-Z]{3})(\d{2})([A-Z]{2,4})(\d{3})\b/g;
   let match;
   const rawStudents = [];
   while ((match = studentRegex.exec(text)) !== null) {
@@ -1090,177 +1091,208 @@ function closeModal() {
 // ----------------------------------------------------
 
 function exportToExcelDirect() {
-  exportToExcelCustom(true, true, true, true, true);
-}
-
-function exportToPdfDirect() {
-  exportToPdfCustom(true, true, true, true, true);
-}
-
-function closeExportModal() {
-  // Modal has been removed, safe no-op
-}
-
-function exportToExcelCustom(summary, dept, subject, student, backlog) {
   if (state.students.length === 0) return;
   showLoading();
   
   setTimeout(() => {
     try {
-      const defaultCreditsEl = document.getElementById('input-default-credits');
-      const defaultCred = defaultCreditsEl ? (parseFloat(defaultCreditsEl.value) || 4) : 4;
-      const wb = XLSX.utils.book_new();
-
-      // SHEET 1: COLLEGE CONSOLIDATED SUMMARY
-      if (summary) {
-        const summaryData = [
-          ["APJ ABDUL KALAM TECHNOLOGICAL UNIVERSITY - COLLEGE RESULTS REPORT"],
-          [],
-          ["OVERALL METRICS"],
-          ["Total Appeared", state.students.length],
-          ["Total Passed (All Subjects Cleared)", state.students.filter(s => s.status === 'PASS').length],
-          ["Total Failed / Supplies", state.students.filter(s => s.status === 'SUPPLY').length],
-          ["Overall Pass Percentage", ((state.students.filter(s => s.status === 'PASS').length / state.students.length) * 100).toFixed(2) + "%"],
-          [],
-          ["BRANCH WISE SUMMARY"],
-          ["Branch Code", "Branch Name", "Appeared", "Passed", "Failed", "Pass %", "Average SGPA"]
-        ];
-        Object.values(state.departments).sort((a,b) => b.passPercentage - a.passPercentage).forEach(d => {
-          summaryData.push([d.code, d.name, d.appeared, d.fullPass, d.supply, d.passPercentage.toFixed(2) + "%", d.averageSgpa.toFixed(2)]);
+      // Calculate overall metrics
+      const totalRegistered = state.students.length;
+      const totalPassed = state.students.filter(s => s.status === 'PASS').length;
+      const totalFailed = totalRegistered - totalPassed;
+      const overallPassPct = totalRegistered > 0 ? ((totalPassed / totalRegistered) * 100).toFixed(2) : "0.00";
+      
+      // Calculate departments standings
+      const sortedDepts = Object.values(state.departments).sort((a, b) => b.passPercentage - a.passPercentage);
+      let deptRows = "";
+      sortedDepts.forEach(d => {
+        deptRows += `
+          <tr>
+            <td style="border: 1px solid #CCCCCC; padding: 8px;">${d.name}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right;">${d.appeared}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #608066; font-weight: bold;">${d.fullPass}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559;">${d.supply}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold;">${d.passPercentage.toFixed(2)}%</td>
+          </tr>
+        `;
+      });
+      
+      // Calculate subject analytics
+      const subjectAgg = {};
+      state.students.forEach(student => {
+        Object.keys(student.grades).forEach(subCode => {
+          if (!subjectAgg[subCode]) {
+            subjectAgg[subCode] = {
+              code: subCode,
+              name: state.subjects[subCode] || subCode,
+              registered: 0,
+              passed: 0,
+              failed: 0
+            };
+          }
+          subjectAgg[subCode].registered++;
+          if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+            subjectAgg[subCode].failed++;
+          } else {
+            subjectAgg[subCode].passed++;
+          }
         });
-        const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-        XLSX.utils.book_append_sheet(wb, wsSummary, "Consolidated College Report");
-      }
-
-      // SHEET 2: DETAILED DEPARTMENT ANALYSIS
-      if (dept) {
-        const deptData = [
-          ["DEPARTMENT Standings & STATISTICS"],
-          [],
-          ["Rank", "Branch Code", "Branch Name", "Students Appeared", "Passed", "Failed (Supply)", "Pass Percentage", "Average SGPA"]
-        ];
-        Object.values(state.departments).sort((a,b) => b.passPercentage - a.passPercentage).forEach((d, idx) => {
-          deptData.push([idx + 1, d.code, d.name, d.appeared, d.fullPass, d.supply, d.passPercentage.toFixed(2) + "%", d.averageSgpa.toFixed(2)]);
-        });
-        const wsDept = XLSX.utils.aoa_to_sheet(deptData);
-        XLSX.utils.book_append_sheet(wb, wsDept, "Department Result Report");
-      }
-
-      // SHEET 3: SUBJECT ANALYSIS REPORT
-      if (subject) {
-        const subjectAgg = {};
-        state.students.forEach(student => {
-          Object.keys(student.grades).forEach(subCode => {
-            if (!subjectAgg[subCode]) {
-              subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, passed: 0, failed: 0, grads: {} };
-              Object.keys(state.gradePoints).forEach(g => subjectAgg[subCode].grads[g] = 0);
-            }
-            subjectAgg[subCode].registered++;
-            const grade = student.grades[subCode];
-            if (['F', 'FE', 'I'].includes(grade)) subjectAgg[subCode].failed++;
-            else subjectAgg[subCode].passed++;
+      });
+      
+      const subjectsList = Object.values(subjectAgg).map(s => {
+        s.passPct = s.registered > 0 ? (s.passed / s.registered) * 100 : 0;
+        return s;
+      });
+      
+      // Sort subjects by pass percentage descending, then take top 5
+      subjectsList.sort((a, b) => {
+        if (b.passPct !== a.passPct) return b.passPct - a.passPct;
+        return b.registered - a.registered; // Secondary sort by student count
+      });
+      const topSubjects = subjectsList.slice(0, 5);
+      
+      let subjectRows = "";
+      topSubjects.forEach((s, idx) => {
+        const deptPrefix = s.code.substring(0, 2).toUpperCase();
+        const deptName = branchNames[deptPrefix] || "General Science/Humanities";
+        subjectRows += `
+          <tr>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px;">${s.code}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px;">${deptName}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold;">${s.passPct.toFixed(2)}%</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right;">${s.registered}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #608066;">${s.passed}</td>
+            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559;">${s.failed}</td>
+          </tr>
+        `;
+      });
+      
+      const excelTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8">
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Result Analysis Report</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            body { font-family: 'Calibri', sans-serif; }
+            table { border-collapse: collapse; margin-bottom: 20px; }
+            td, th { border: 1px solid #CCCCCC; padding: 8px; font-size: 11pt; vertical-align: middle; }
+            .header-banner-1 { background-color: #6A1B9A; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 16pt; height: 35px; border: 1px solid #4A148C; }
+            .header-banner-2 { background-color: #4CAF50; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 13pt; height: 30px; border: 1px solid #388E3C; }
+            .header-banner-3 { background-color: #FFC107; color: #000000; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; border: 1px solid #F57F17; }
+            .section-header-stat { background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
+            .section-header-dept { background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
+            .table-header { background-color: #0D47A1; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; }
+            .bold-text { font-weight: bold; background-color: #F5F5F5; }
+            .number-cell { text-align: right; }
+            .percent-cell { text-align: right; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <table>
+            <!-- Header Banners -->
+            <tr>
+              <td colspan="7" class="header-banner-1">KTU RESULT ANALYSER - OVERALL SUMMARY REPORT</td>
+            </tr>
+            <tr>
+              <td colspan="7" class="header-banner-2">PROVIDENCE COLLEGE OF ENGINEERING</td>
+            </tr>
+            <tr>
+              <td colspan="7" class="header-banner-3">KTU Result Analysis</td>
+            </tr>
             
-            if (subjectAgg[subCode].grads[grade] !== undefined) subjectAgg[subCode].grads[grade]++;
-          });
-        });
-
-        const subjectHeader = ["Subject Code", "Subject Name", "Registered", "Passed", "Failed", "Pass Percentage"];
-        const gradeHeaders = Object.keys(state.gradePoints);
-        const fullSubHeader = subjectHeader.concat(gradeHeaders);
-        const subData = [
-          ["SUBJECT ANALYSIS AND GRADE DISTRIBUTIONS"],
-          [],
-          fullSubHeader
-        ];
-        Object.values(subjectAgg).sort((a,b) => b.failed - a.failed).forEach(s => {
-          const passPct = s.registered > 0 ? (s.passed / s.registered) * 100 : 0;
-          const row = [s.code, s.name, s.registered, s.passed, s.failed, passPct.toFixed(2) + "%"];
-          gradeHeaders.forEach(g => {
-            row.push(s.grads[g] || 0);
-          });
-          subData.push(row);
-        });
-        const wsSubject = XLSX.utils.aoa_to_sheet(subData);
-        XLSX.utils.book_append_sheet(wb, wsSubject, "Subject Analysis Report");
-      }
-
-      // SHEET 4: STUDENT RESULTS REPORT (PIVOT GRID MAPPING STUDENTS TO SUBJECT CODES)
-      if (student) {
-        const subjectAgg = {};
-        state.students.forEach(student => {
-          Object.keys(student.grades).forEach(subCode => {
-            if (!subjectAgg[subCode]) {
-              subjectAgg[subCode] = { code: subCode };
-            }
-          });
-        });
-        const uniqueSubjects = Object.keys(subjectAgg).sort();
-        const studentHeader = ["Class Rank", "Dept Rank", "Register No", "Name", "Branch Code", "Passed / Total", "Backlog Count", "SGPA", "Status"];
-        const fullStudHeader = studentHeader.concat(uniqueSubjects);
-        const studReportData = [
-          ["STUDENT PERFORMANCE PIVOT DIRECTORY"],
-          [],
-          fullStudHeader
-        ];
-        const sortedStudents = [...state.students].sort((a, b) => b.sgpa - a.sgpa);
-        sortedStudents.forEach(stud => {
-          const row = [
-            stud.classRank,
-            stud.deptRank,
-            stud.id,
-            stud.name,
-            stud.branch,
-            `${stud.passedCount} / ${stud.totalCount}`,
-            stud.backlogs,
-            stud.sgpa.toFixed(2),
-            stud.status === 'PASS' ? 'Full Pass' : 'Supply'
-          ];
-          uniqueSubjects.forEach(subCode => {
-            row.push(stud.grades[subCode] || "-");
-          });
-          studReportData.push(row);
-        });
-        const wsStudent = XLSX.utils.aoa_to_sheet(studReportData);
-        XLSX.utils.book_append_sheet(wb, wsStudent, "Student Performance Report");
-      }
-
-      // SHEET 5: BACKLOG/SUPPLY ANALYSIS
-      if (backlog) {
-        const subjectAgg = {};
-        state.students.forEach(student => {
-          Object.keys(student.grades).forEach(subCode => {
-            if (!subjectAgg[subCode]) {
-              subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
-            }
-            subjectAgg[subCode].registered++;
-            const grade = student.grades[subCode];
-            if (['F', 'FE', 'I'].includes(grade)) subjectAgg[subCode].failed++;
-          });
-        });
-        const backlogData = [
-          ["BACKLOG AND FAILURE METRICS ANALYSIS"],
-          [],
-          ["SUBJECT-WISE FAILURE RATE RANKING"],
-          ["Subject Code", "Subject Name", "Failures Count", "Failure Rate"],
-        ];
-        Object.values(subjectAgg).sort((a,b) => b.failed - a.failed).filter(s => s.failed > 0).forEach(s => {
-          backlogData.push([s.code, s.name, s.failed, ((s.failed / s.registered) * 100).toFixed(2) + "%"]);
-        });
-        backlogData.push([]);
-        backlogData.push([]);
-        backlogData.push(["STUDENTS WITH MAXIMUM BACKLOGS"]);
-        backlogData.push(["Register No", "Name", "Branch Code", "Backlog Count", "Failed Subject Codes"]);
-        state.students.filter(s => s.backlogs > 0).sort((a,b) => b.backlogs - a.backlogs).forEach(stud => {
-          const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I'].includes(stud.grades[code])).join(', ');
-          backlogData.push([stud.id, stud.name, stud.branch, stud.backlogs, failedSubs]);
-        });
-        const wsBacklog = XLSX.utils.aoa_to_sheet(backlogData);
-        XLSX.utils.book_append_sheet(wb, wsBacklog, "Backlog Analysis Report");
-      }
-
-      XLSX.writeFile(wb, "KTU_Result_Analysis_Report.xlsx");
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
+            
+            <!-- Overall Statistics Header -->
+            <tr>
+              <td colspan="4" class="section-header-stat" style="background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt;">OVERALL STATISTICS - REGULAR STUDENTS ONLY</td>
+              <td colspan="3" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Total Registered</td>
+              <td class="number-cell" style="text-align: right;">${totalRegistered}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Total Passed</td>
+              <td class="number-cell" style="text-align: right;">${totalPassed}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Total Failed</td>
+              <td class="number-cell" style="text-align: right;">${totalFailed}</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+            <tr>
+              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Overall Pass %</td>
+              <td class="percent-cell" style="text-align: right; font-weight: bold;">${overallPassPct}%</td>
+              <td colspan="5" style="border:none;"></td>
+            </tr>
+            
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
+            
+            <!-- Department Table Header -->
+            <tr>
+              <td colspan="5" class="section-header-dept" style="background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt;">DEPARTMENT-WISE PERFORMANCE ANALYSIS</td>
+              <td colspan="2" style="border:none;"></td>
+            </tr>
+            <tr class="table-header" style="background-color: #0D47A1; color: #FFFFFF; font-weight: bold;">
+              <td>Department Name</td>
+              <td>Total Regular Students</td>
+              <td>Total Pass</td>
+              <td>Total Fail</td>
+              <td>Pass Percentage</td>
+              <td colspan="2" style="border:none;"></td>
+            </tr>
+            ${deptRows}
+            
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
+            
+            <!-- Top 5 Subjects Header -->
+            <tr>
+              <td colspan="7" class="section-header-dept" style="background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt;">TOP 5 PERFORMING SUBJECTS</td>
+            </tr>
+            <tr class="table-header" style="background-color: #0D47A1; color: #FFFFFF; font-weight: bold;">
+              <td>Rank</td>
+              <td>Subject Code</td>
+              <td>Department</td>
+              <td>Pass %</td>
+              <td>Total Students</td>
+              <td>Pass</td>
+              <td>Fail</td>
+            </tr>
+            ${subjectRows}
+          </table>
+        </body>
+        </html>
+      `;
+      
+      const blob = new Blob([excelTemplate], { type: "application/vnd.ms-excel" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "KTU_Result_Analysis_Report.xls";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       hideLoading();
-      closeExportModal();
     } catch (err) {
       alert("Failed to export Excel report: " + err.message);
       hideLoading();
@@ -1268,328 +1300,8 @@ function exportToExcelCustom(summary, dept, subject, student, backlog) {
   }, 100);
 }
 
-function exportToPdfCustom(summary, dept, subject, student, backlog) {
-  if (state.students.length === 0) return;
-  showLoading();
-
-  setTimeout(() => {
-    try {
-      // Create offscreen container
-      const container = document.createElement('div');
-      container.style.padding = '20px';
-      container.style.background = '#FFFFFF';
-      container.style.color = '#000000';
-      container.style.fontFamily = 'Arial, sans-serif';
-      
-      const styles = `
-        <style>
-          .pdf-title { text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #1e293b; text-transform: uppercase; }
-          .pdf-subtitle { text-align: center; font-size: 14px; color: #64748b; margin-top: -15px; margin-bottom: 30px; }
-          .pdf-h2 { font-size: 16px; border-bottom: 2px solid #cbd5e1; padding-bottom: 5px; margin-top: 30px; margin-bottom: 15px; color: #334155; page-break-after: avoid; }
-          .pdf-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 10px; }
-          .pdf-table th { background: #f1f5f9; font-weight: bold; color: #1e293b; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-          .pdf-table td { border: 1px solid #cbd5e1; padding: 6px 8px; color: #334155; }
-          .pdf-table tr:nth-child(even) td { background: #f8fafc; }
-          .pdf-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 25px; }
-          .pdf-kpi-card { border: 1px solid #cbd5e1; padding: 10px; border-radius: 4px; background: #f8fafc; }
-          .pdf-kpi-label { font-size: 8px; text-transform: uppercase; color: #64748b; font-weight: bold; }
-          .pdf-kpi-value { font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 2px; }
-          .pdf-page-break { page-break-before: always; }
-        </style>
-      `;
-      
-      let htmlContent = styles;
-      htmlContent += `<div class="pdf-title">APJ Abdul Kalam Technological University</div>`;
-      htmlContent += `<div class="pdf-subtitle">College Results Analysis Report</div>`;
-
-      // 1. Consolidated Summary
-      if (summary) {
-        const totalApp = state.students.length;
-        const totalPass = state.students.filter(s => s.status === 'PASS').length;
-        const totalFail = totalApp - totalPass;
-        const passRate = (totalPass / totalApp) * 100;
-        
-        let topBranch = "N/A";
-        let maxPassPct = -1;
-        Object.keys(state.departments).forEach(branch => {
-          const d = state.departments[branch];
-          if (d.passPercentage > maxPassPct) {
-            maxPassPct = d.passPercentage;
-            topBranch = d.code;
-          }
-        });
-
-        htmlContent += `
-          <div class="pdf-h2">1. Consolidated College Report Summary</div>
-          <div class="pdf-kpi-grid">
-            <div class="pdf-kpi-card">
-              <div class="pdf-kpi-label">Students Appeared</div>
-              <div class="pdf-kpi-value">${totalApp}</div>
-            </div>
-            <div class="pdf-kpi-card">
-              <div class="pdf-kpi-label">Overall Pass Rate</div>
-              <div class="pdf-kpi-value">${passRate.toFixed(1)}%</div>
-            </div>
-            <div class="pdf-kpi-card">
-              <div class="pdf-kpi-label">Supply Students</div>
-              <div class="pdf-kpi-value">${totalFail}</div>
-            </div>
-            <div class="pdf-kpi-card">
-              <div class="pdf-kpi-label">Top Branch</div>
-              <div class="pdf-kpi-value">${topBranch}</div>
-            </div>
-          </div>
-          
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th>Branch</th>
-                <th>Department Name</th>
-                <th style="text-align: center;">Appeared</th>
-                <th style="text-align: center;">Passed</th>
-                <th style="text-align: center;">Supply</th>
-                <th style="text-align: center;">Pass %</th>
-                <th style="text-align: center;">Avg SGPA</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        Object.values(state.departments).sort((a,b) => b.passPercentage - a.passPercentage).forEach(d => {
-          htmlContent += `
-            <tr>
-              <td><strong>${d.code}</strong></td>
-              <td>${d.name}</td>
-              <td style="text-align: center;">${d.appeared}</td>
-              <td style="text-align: center;">${d.fullPass}</td>
-              <td style="text-align: center;">${d.supply}</td>
-              <td style="text-align: center; font-weight: bold;">${d.passPercentage.toFixed(1)}%</td>
-              <td style="text-align: center;">${d.averageSgpa.toFixed(2)}</td>
-            </tr>
-          `;
-        });
-        htmlContent += `</tbody></table>`;
-      }
-
-      // 2. Department stands
-      if (dept) {
-        const isBreak = summary ? " pdf-page-break" : "";
-        htmlContent += `
-          <div class="pdf-h2${isBreak}">2. Department Result Standings Report</div>
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th style="width: 40px; text-align: center;">Rank</th>
-                <th>Branch</th>
-                <th>Department Name</th>
-                <th style="text-align: center;">Appeared</th>
-                <th style="text-align: center;">Passed</th>
-                <th style="text-align: center;">Supply</th>
-                <th style="text-align: center;">Pass %</th>
-                <th style="text-align: center;">Average SGPA</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        Object.values(state.departments).sort((a,b) => b.passPercentage - a.passPercentage).forEach((d, idx) => {
-          htmlContent += `
-            <tr>
-              <td style="text-align: center; font-weight: bold;">${idx + 1}</td>
-              <td><strong>${d.code}</strong></td>
-              <td>${d.name}</td>
-              <td style="text-align: center;">${d.appeared}</td>
-              <td style="text-align: center;">${d.fullPass}</td>
-              <td style="text-align: center;">${d.supply}</td>
-              <td style="text-align: center; font-weight: bold;">${d.passPercentage.toFixed(1)}%</td>
-              <td style="text-align: center; font-weight: bold;">${d.averageSgpa.toFixed(2)}</td>
-            </tr>
-          `;
-        });
-        htmlContent += `</tbody></table>`;
-      }
-
-      // 3. Subject Analysis
-      if (subject) {
-        const isBreak = (summary || dept) ? " pdf-page-break" : "";
-        const subjectAgg = {};
-        state.students.forEach(student => {
-          Object.keys(student.grades).forEach(subCode => {
-            if (!subjectAgg[subCode]) {
-              subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, passed: 0, failed: 0 };
-            }
-            subjectAgg[subCode].registered++;
-            const grade = student.grades[subCode];
-            if (['F', 'FE', 'I'].includes(grade)) subjectAgg[subCode].failed++;
-            else subjectAgg[subCode].passed++;
-          });
-        });
-
-        htmlContent += `
-          <div class="pdf-h2${isBreak}">3. Subject-wise Analysis Report</div>
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th>Subject Code</th>
-                <th>Subject Name</th>
-                <th style="text-align: center;">Registered</th>
-                <th style="text-align: center;">Passed</th>
-                <th style="text-align: center;">Failed</th>
-                <th style="text-align: center;">Pass %</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        Object.values(subjectAgg).sort((a,b) => b.failed - a.failed).forEach(s => {
-          const passPct = s.registered > 0 ? (s.passed / s.registered) * 100 : 0;
-          htmlContent += `
-            <tr>
-              <td><span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-weight: bold;">${s.code}</span></td>
-              <td><strong>${s.name}</strong></td>
-              <td style="text-align: center;">${s.registered}</td>
-              <td style="text-align: center;">${s.passed}</td>
-              <td style="text-align: center;">${s.failed}</td>
-              <td style="text-align: center; font-weight: bold; color: ${passPct < 60 ? '#b56559' : '#000000'};">${passPct.toFixed(1)}%</td>
-            </tr>
-          `;
-        });
-        htmlContent += `</tbody></table>`;
-      }
-
-      // 4. Student performance report
-      if (student) {
-        const isBreak = (summary || dept || subject) ? " pdf-page-break" : "";
-        htmlContent += `
-          <div class="pdf-h2${isBreak}">4. Student Performance Report Directory</div>
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th style="width: 40px; text-align: center;">Rank</th>
-                <th>Register No</th>
-                <th>Student Name</th>
-                <th style="text-align: center;">Branch</th>
-                <th style="text-align: center;">Pass / Total</th>
-                <th style="text-align: center;">Supplies</th>
-                <th style="text-align: center;">SGPA</th>
-                <th style="text-align: center;">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        const sortedStudents = [...state.students].sort((a, b) => b.sgpa - a.sgpa);
-        sortedStudents.forEach(stud => {
-          htmlContent += `
-            <tr>
-              <td style="text-align: center;">${stud.classRank}</td>
-              <td><strong>${stud.id}</strong></td>
-              <td>${stud.name}</td>
-              <td style="text-align: center;">${stud.branch}</td>
-              <td style="text-align: center;">${stud.passedCount} / ${stud.totalCount}</td>
-              <td style="text-align: center; font-weight: bold; color: ${stud.backlogs > 0 ? '#b56559' : '#64748b'};">${stud.backlogs}</td>
-              <td style="text-align: center; font-weight: bold; color: #6b705c;">${stud.sgpa.toFixed(2)}</td>
-              <td style="text-align: center; font-weight: bold; color: ${stud.status === 'PASS' ? '#608066' : '#b56559'};">${stud.status === 'PASS' ? 'Full Pass' : 'Supply'}</td>
-            </tr>
-          `;
-        });
-        htmlContent += `</tbody></table>`;
-      }
-
-      // 5. Backlog Analysis Report
-      if (backlog) {
-        const isBreak = (summary || dept || subject || student) ? " pdf-page-break" : "";
-        const subjectAgg = {};
-        state.students.forEach(student => {
-          Object.keys(student.grades).forEach(subCode => {
-            if (!subjectAgg[subCode]) {
-              subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
-            }
-            subjectAgg[subCode].registered++;
-            const grade = student.grades[subCode];
-            if (['F', 'FE', 'I'].includes(grade)) subjectAgg[subCode].failed++;
-          });
-        });
-
-        htmlContent += `
-          <div class="pdf-h2${isBreak}">5. Backlog / Supply Analysis Report</div>
-          <h3 style="font-size: 11px; margin-bottom: 8px; color: #334155;">Top Difficult Subjects (Highest Failure Count)</h3>
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th>Subject Code</th>
-                <th>Subject Name</th>
-                <th style="text-align: center;">Failures Count</th>
-                <th style="text-align: center;">Failure Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        Object.values(subjectAgg).sort((a,b) => b.failed - a.failed).filter(s => s.failed > 0).slice(0, 10).forEach(s => {
-          htmlContent += `
-            <tr>
-              <td><span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-weight: bold;">${s.code}</span></td>
-              <td><strong>${s.name}</strong></td>
-              <td style="text-align: center; font-weight: bold; color: #b56559;">${s.failed}</td>
-              <td style="text-align: center; font-weight: bold; color: #b56559;">${((s.failed / s.registered) * 100).toFixed(1)}%</td>
-            </tr>
-          `;
-        });
-        htmlContent += `</tbody></table>`;
-
-        htmlContent += `
-          <h3 style="font-size: 11px; margin-top: 20px; margin-bottom: 8px; color: #334155; page-break-before: avoid;">Students with Maximum Backlogs</h3>
-          <table class="pdf-table">
-            <thead>
-              <tr>
-                <th>Register No</th>
-                <th>Student Name</th>
-                <th style="text-align: center;">Branch</th>
-                <th style="text-align: center;">Backlogs</th>
-                <th>Failed Subject Codes</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        const backlogStudents = state.students.filter(s => s.backlogs > 0).sort((a,b) => b.backlogs - a.backlogs).slice(0, 15);
-        if (backlogStudents.length === 0) {
-          htmlContent += `<tr><td colspan="5" style="text-align: center;">No student failures registered. Outstanding performance.</td></tr>`;
-        } else {
-          backlogStudents.forEach(stud => {
-            const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I'].includes(stud.grades[code])).join(', ');
-            htmlContent += `
-              <tr>
-                <td><strong>${stud.id}</strong></td>
-                <td>${stud.name}</td>
-                <td style="text-align: center;">${stud.branch}</td>
-                <td style="text-align: center; font-weight: bold; color: #b56559;">${stud.backlogs}</td>
-                <td style="color: #b56559;">${failedSubs}</td>
-              </tr>
-            `;
-          });
-        }
-        htmlContent += `</tbody></table>`;
-      }
-
-      container.innerHTML = htmlContent;
-
-      // Generate PDF from container
-      const opt = {
-        margin:       [12, 12, 12, 12],
-        filename:     'KTU_Result_Analysis_Report.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      html2pdf().from(container).set(opt).save().then(() => {
-        hideLoading();
-        closeExportModal();
-      }).catch(err => {
-        alert("Error generating PDF: " + err.message);
-        hideLoading();
-      });
-    } catch (err) {
-      alert("Failed to generate PDF: " + err.message);
-      hideLoading();
-    }
-  }, 100);
+function exportToPdfDirect() {
+  window.print();
 }
 
 // ----------------------------------------------------
