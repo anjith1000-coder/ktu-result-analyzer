@@ -333,9 +333,35 @@ if (med416Credits !== 4 || csd416Credits !== 4) {
   process.exit(1);
 }
 
+// 4. Check general column text bleeding truncation
+const bleedTest = cleanAndExtractSubjects('CST302', 'DATABASE MANAGEMENT SYSTEMS EET436 ADDITIONAL INFO');
+console.log('bleedTest name:', bleedTest.cleanedName);
+if (bleedTest.cleanedName !== 'DATABASE MANAGEMENT SYSTEMS') {
+  console.error(`[FAIL] Bleeding text EET436 was not correctly truncated: "${bleedTest.cleanedName}"`);
+  process.exit(1);
+}
+
+const fallbackTest = cleanAndExtractSubjects('MET404', 'MET404 MET404');
+console.log('fallbackTest name:', fallbackTest.cleanedName);
+if (fallbackTest.cleanedName !== 'COMPREHENSIVE VIVA VOCE') {
+  console.error(`[FAIL] Fallback name for MET404 was not assigned correctly: "${fallbackTest.cleanedName}"`);
+  process.exit(1);
+}
+
+// 5. Check 404-series comprehensive credits
+const met404Credits = getInitialDefaultCredits('MET404', '2019');
+const cst404Credits = getInitialDefaultCredits('CST404', '2024');
+console.log(`MET404 Credits: ${met404Credits}`);
+console.log(`CST404 Credits: ${cst404Credits}`);
+
+if (met404Credits !== 1 || cst404Credits !== 1) {
+  console.error(`[FAIL] Credits for 404-series subjects were not mapped to 1. MET404: ${met404Credits}, CST404: ${cst404Credits}`);
+  process.exit(1);
+}
+
 global.document.getElementById = originalGetElementByIdTest5;
 global.recalculateAndRefresh = recalculateAndRefresh = originalRecalculateAndRefresh;
 
-console.log('[PASS] 416-series extraction, separate allocation, and credit weights verified successfully.');
+console.log('[PASS] 416-series extraction, separate allocation, bleeding prevention, and 404 credit weights verified successfully.');
 
 console.log('\nAll tests completed successfully!');

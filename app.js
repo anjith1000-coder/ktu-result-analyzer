@@ -24,6 +24,9 @@ function getInitialDefaultCredits(courseCode, scheme) {
   if (!courseCode) return 3;
   const code = courseCode.toUpperCase().trim();
   
+  // Assign 1 credit for 404-series comprehensive courses
+  if (code.endsWith('404')) return 1;
+  
   if (scheme === '2019') {
     if (code.startsWith('MAT')) return 4;
     if (code.startsWith('HUN')) return 2;
@@ -392,26 +395,42 @@ function resetBadge(type) {
   status.classList.remove('active');
 }
 
-// Target regex to catch any of the specific 416 codes mentioned
-const vivaProjectRegex = /\b(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)\b/i;
-
 function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
-    let cleanedName = rawSubjectName;
+    let cleanedName = rawSubjectName.trim();
     let extractedVivaCode = null;
 
-    // Check if a 416 code is trapped inside the name string
-    const match = cleanedName.match(vivaProjectRegex);
-    if (match) {
-        extractedVivaCode = match[1].toUpperCase();
-        
-        // Scrub the code and common junk phrases from the parent subject's name
-        cleanedName = cleanedName
-            .replace(vivaProjectRegex, '')
-            .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
-            .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
-            .replace(/PROJECT\s+PHASE\s+II\s+R/gi, '')
-            .replace(/\s+/g, ' ') // Collapse extra spaces
-            .trim();
+    // 1. Check for standalone 416 project entries
+    const vivaMatch = cleanedName.match(/\b(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)\b/i);
+    if (vivaMatch) {
+        extractedVivaCode = vivaMatch[1].toUpperCase();
+    }
+
+    // 2. Identify generic column text bleed (e.g. CAT404, EET436, CGT402) inside the name field
+    // A standard KTU course code consists of 3-4 uppercase letters followed by 3 numbers
+    const bleedMatch = cleanedName.match(/\b([A-Z]{3,4}\d{3})\b/i);
+    if (bleedMatch) {
+        // Truncate everything from the point where the accidental adjacent column text begins
+        const bleedIndex = cleanedName.indexOf(bleedMatch[0]);
+        cleanedName = cleanedName.substring(0, bleedIndex).trim();
+    }
+
+    // 3. Clean up common structural junk phrases
+    cleanedName = cleanedName
+        .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
+        .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
+        .replace(/PROJECT\s+PHASE\s+II\s+R/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Fallback: If truncation or cleaning left the name string completely empty (e.g. "MET404 MET404")
+    if (!cleanedName) {
+        if (rawSubjectCode.endsWith('404')) {
+            cleanedName = "COMPREHENSIVE VIVA VOCE";
+        } else if (rawSubjectCode.endsWith('415')) {
+            cleanedName = "COMPREHENSIVE COURSE VIVA";
+        } else {
+            cleanedName = rawSubjectCode;
+        }
     }
 
     return { cleanedName, extractedVivaCode };
