@@ -399,28 +399,56 @@ function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
     let cleanedName = rawSubjectName.trim();
     let extractedVivaCode = null;
 
-    // Truncate at the first newline if any
+    // Truncate at the first newline if any to prevent cross-line bleeding of student records
     const newlineIndex = cleanedName.indexOf('\n');
     if (newlineIndex !== -1) {
         cleanedName = cleanedName.substring(0, newlineIndex).trim();
     }
 
-    // 1. Check for standalone 416 project entries
+    // 1. Check for standalone 416 project entries embedded in text
     const vivaMatch = cleanedName.match(/\b(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)\b/i);
     if (vivaMatch) {
         extractedVivaCode = vivaMatch[1].toUpperCase();
     }
 
-    // 2. Identify generic column text bleed (e.g. CAT404, EET436, CGT402) inside the name field
-    // A standard KTU course code consists of 3-4 uppercase letters followed by 3 numbers
-    const bleedMatch = cleanedName.match(/\b([A-Z]{3,4}\d{3})\b/i);
-    if (bleedMatch) {
-        // Truncate everything from the point where the accidental adjacent column text begins
-        const bleedIndex = cleanedName.indexOf(bleedMatch[0]);
+    // 2. Heavy-Duty Bleed Separation Layer
+    // Scan for ANY other course code format bleeding into this name string (excluding itself)
+    const codeBleedMatch = cleanedName.match(/\b([A-Z]{3,4}\d{3})\b/i);
+    if (codeBleedMatch && codeBleedMatch[1].toUpperCase() !== rawSubjectCode.toUpperCase()) {
+        const bleedingCode = codeBleedMatch[1].toUpperCase();
+        const bleedIndex = cleanedName.indexOf(codeBleedMatch[0]);
+        
+        // Extract the name belonging to the swallowed/bleeding course code
+        let bleedingCourseName = cleanedName.substring(bleedIndex + codeBleedMatch[0].length).trim();
+        
+        // Truncate any further nested bleeding if multiple codes exist on the line
+        const nextBleed = bleedingCourseName.match(/\b([A-Z]{3,4}\d{3})\b/i);
+        if (nextBleed) {
+            bleedingCourseName = bleedingCourseName.substring(0, bleedingCourseName.indexOf(nextBleed[0])).trim();
+        }
+        
+        // Trim the primary subject name right before the bleeding code begins
         cleanedName = cleanedName.substring(0, bleedIndex).trim();
+        
+        // Proactively register the swallowed course and its clean name into the application state
+        if (bleedingCode && bleedingCourseName && !bleedingCourseName.match(/^[A-Z]{3,4}\d{3}$/)) {
+            bleedingCourseName = bleedingCourseName
+                .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
+                .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            
+            if (bleedingCourseName && typeof state !== 'undefined' && state.subjects) {
+                state.subjects[bleedingCode] = bleedingCourseName;
+            }
+        }
     }
 
-    // 3. Clean up common structural junk phrases
+    // 3. Clear out any self-referencing code repetitions inside the name block
+    const selfCodeRegex = new RegExp(`\\b${rawSubjectCode}\\b`, 'gi');
+    cleanedName = cleanedName.replace(selfCodeRegex, '');
+
+    // 4. Scrub out common structural junk phrases
     cleanedName = cleanedName
         .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
         .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
@@ -428,16 +456,17 @@ function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
         .replace(/\s+/g, ' ')
         .trim();
 
-    // Fallback: If truncation or cleaning left the name string completely empty (e.g. "MET404 MET404")
+    // 5. Fallbacks if cleaning or truncation leaves the string empty
     if (!cleanedName) {
         if (rawSubjectCode.endsWith('404')) {
             cleanedName = "COMPREHENSIVE VIVA VOCE";
         } else if (rawSubjectCode.endsWith('415')) {
             cleanedName = "COMPREHENSIVE COURSE VIVA";
-        } else if (/^(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)$/i.test(rawSubjectCode)) {
+        } else if (rawSubjectCode.endsWith('416') || ['MED416', 'CED416', 'EED416', 'ECD416', 'CSD416', 'CAD416', 'CGD416'].includes(rawSubjectCode)) {
             cleanedName = "PROJECT PHASE II";
         } else {
-            cleanedName = rawSubjectCode;
+            const dept = rawSubjectCode.substring(0, 3).toUpperCase();
+            cleanedName = `${dept} Course / Elective`;
         }
     }
 

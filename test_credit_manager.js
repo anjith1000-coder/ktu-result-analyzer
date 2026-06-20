@@ -340,6 +340,10 @@ if (bleedTest.cleanedName !== 'DATABASE MANAGEMENT SYSTEMS') {
   console.error(`[FAIL] Bleeding text EET436 was not correctly truncated: "${bleedTest.cleanedName}"`);
   process.exit(1);
 }
+if (state.subjects['EET436'] !== 'ADDITIONAL INFO') {
+  console.error(`[FAIL] Swallowed bleeding course EET436 was not auto-populated in state.subjects: "${state.subjects['EET436']}"`);
+  process.exit(1);
+}
 
 const fallbackTest = cleanAndExtractSubjects('MET404', 'MET404 MET404');
 console.log('fallbackTest name:', fallbackTest.cleanedName);
