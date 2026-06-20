@@ -439,6 +439,83 @@ if (!summaryCardContent.includes('4.95') || !summaryCardContent.includes('8.80')
 global.document.querySelectorAll = originalQuerySelectorAllMaxer;
 global.document.getElementById = originalGetElementByIdMaxer;
 
-console.log('[PASS] SGPA Maxer revaluation simulations and dynamic calculations verified successfully.');
+// Test 7: Universal SGPA Maxer calculation checks
+console.log('\n--- TEST 7: UNIVERSAL SGPA MAXER SIMULATION ---');
+
+const studentForUnivMaxer = {
+  id: 'PRC22CS099',
+  name: 'Univ Maxer Student',
+  grades: {
+    'MAT201': 'P',  // 5.5 points, 4 credits
+    'CST201': 'C',  // 6.5 points, 3 credits
+    'EST200': 'D'   // 6.0 points, 3 credits
+  },
+  sgpa: 5.95
+};
+
+// Add student to state
+state.students.push(studentForUnivMaxer);
+
+// Set credits in global map
+globalCreditsMap['MAT201'] = 4;
+globalCreditsMap['CST201'] = 3;
+globalCreditsMap['EST200'] = 3;
+
+// Mock dropdown elements for the universal view
+const mockUnivDropdowns = [
+  {
+    dataset: { subject: 'MAT201', credits: '4' },
+    value: 'S' // upgraded from P to S (10.0 points)
+  },
+  {
+    dataset: { subject: 'CST201', credits: '3' },
+    value: 'A+' // upgraded from C to A+ (9.0 points)
+  },
+  {
+    dataset: { subject: 'EST200', credits: '3' },
+    value: 'B' // upgraded from D to B (7.5 points)
+  }
+];
+
+const originalQuerySelectorAllUniv = global.document.querySelectorAll;
+global.document.querySelectorAll = (selector) => {
+  if (selector === '.univ-maxer-grade-select') {
+    return mockUnivDropdowns;
+  }
+  return [];
+};
+
+let univSummaryCardContent = '';
+const originalGetElementByIdUniv = global.document.getElementById;
+global.document.getElementById = (id) => {
+  if (id === 'univ-maxer-summary') {
+    return {
+      set innerHTML(val) {
+        univSummaryCardContent = val;
+      }
+    };
+  }
+  return originalGetElementByIdUniv(id);
+};
+
+// Run calculation
+calculateUnivMaxedSgpa(studentForUnivMaxer);
+
+console.log('Universal SGPA Maxer Summary Output HTML:\n', univSummaryCardContent);
+
+// Baseline: (5.5 * 4) + (6.5 * 3) + (6.0 * 3) = 22 + 19.5 + 18.0 = 59.5 => 5.95 SGPA
+// Simulated: (10.0 * 4) + (9.0 * 3) + (7.5 * 3) = 40 + 27 + 22.5 = 89.5 => 8.95 SGPA
+// Delta: 8.95 - 5.95 = 3.00
+
+if (!univSummaryCardContent.includes('5.95') || !univSummaryCardContent.includes('8.95') || !univSummaryCardContent.includes('+3.00')) {
+  console.error('[FAIL] Universal SGPA Maxer calculations or HTML output are incorrect.');
+  process.exit(1);
+}
+
+// Restore mocks
+global.document.querySelectorAll = originalQuerySelectorAllUniv;
+global.document.getElementById = originalGetElementByIdUniv;
+
+console.log('[PASS] Universal SGPA Maxer simulations and dynamic calculations verified successfully.');
 
 console.log('\nAll tests completed successfully!');

@@ -136,6 +136,7 @@ function initSchemeConfig() {
 function recalculateAndRefresh() {
   processParsedData();
   populateDeptFilterOptions();
+  populateUnivMaxerStudentList();
   renderActiveTab();
   updateKPIs();
 }
@@ -219,6 +220,22 @@ function setupEventListeners() {
   const backlogFilter = document.getElementById('backlogBranchFilter');
   if (backlogFilter) {
     backlogFilter.addEventListener('change', renderBacklogsView);
+  }
+
+  // Universal SGPA Maxer Load Student
+  const btnUnivLoad = document.getElementById('btn-univ-maxer-load');
+  if (btnUnivLoad) {
+    btnUnivLoad.addEventListener('click', loadUnivMaxerStudent);
+  }
+  const univSelect = document.getElementById('univ-maxer-student-select');
+  if (univSelect) {
+    univSelect.addEventListener('change', (e) => {
+      const val = e.target.value;
+      if (val) {
+        document.getElementById('univ-maxer-search-input').value = val;
+        loadUnivMaxerStudent();
+      }
+    });
   }
 
   // Global Credit Input listener
@@ -811,6 +828,8 @@ function renderActiveTab() {
     renderStudentsTable();
   } else if (activeTab === 'backlog') {
     renderBacklogsView();
+  } else if (activeTab === 'sgpa-maxer') {
+    renderUnivMaxerView();
   }
 }
 
@@ -2178,4 +2197,236 @@ function updateHeaderArrows(tbodyId) {
       th.appendChild(arrow);
     }
   });
+}
+
+// ----------------------------------------------------
+// UNIVERSAL SGPA MAXER & SIMULATOR VIEW
+// ----------------------------------------------------
+
+function populateUnivMaxerStudentList() {
+  const select = document.getElementById('univ-maxer-student-select');
+  const datalist = document.getElementById('student-roll-nos');
+  if (!select && !datalist) return;
+
+  if (select) {
+    select.innerHTML = '<option value="">-- Select Student --</option>';
+  }
+  if (datalist) {
+    datalist.innerHTML = '';
+  }
+
+  if (typeof state === 'undefined' || !state.students) return;
+
+  // Sort students alphabetically by roll number (id)
+  const sortedStudents = [...state.students].sort((a, b) => a.id.localeCompare(b.id));
+
+  sortedStudents.forEach(student => {
+    const displayName = student.name ? `${student.id} - ${student.name}` : student.id;
+    
+    if (select) {
+      const opt = document.createElement('option');
+      opt.value = student.id;
+      opt.textContent = displayName;
+      select.appendChild(opt);
+    }
+    
+    if (datalist) {
+      const opt = document.createElement('option');
+      opt.value = student.id;
+      opt.textContent = student.name ? student.name : '';
+      datalist.appendChild(opt);
+    }
+  });
+}
+
+function loadUnivMaxerStudent() {
+  const input = document.getElementById('univ-maxer-search-input');
+  if (!input) return;
+  const studentId = input.value.trim().toUpperCase();
+  if (!studentId) {
+    alert('Please enter or select a valid Student Roll Number.');
+    return;
+  }
+
+  const student = state.students.find(s => s.id.toUpperCase() === studentId || (s.name && s.name.toUpperCase() === studentId));
+  if (!student) {
+    alert(`Student with Roll Number or Name "${studentId}" not found.`);
+    return;
+  }
+
+  state.loadedMaxerStudentId = student.id;
+  
+  // Sync the select dropdown value if matching option exists
+  const select = document.getElementById('univ-maxer-student-select');
+  if (select) {
+    select.value = student.id;
+  }
+  // Sync search input to match correct roll number
+  input.value = student.id;
+
+  renderUnivMaxerStudentData();
+}
+
+function renderUnivMaxerStudentData() {
+  const studentId = state.loadedMaxerStudentId;
+  const student = state.students.find(s => s.id === studentId);
+  
+  const emptyDiv = document.getElementById('univ-maxer-empty');
+  const contentDiv = document.getElementById('univ-maxer-content');
+  
+  if (!student) {
+    if (emptyDiv) emptyDiv.classList.remove('hidden');
+    if (contentDiv) contentDiv.classList.add('hidden');
+    return;
+  }
+
+  if (emptyDiv) emptyDiv.classList.add('hidden');
+  if (contentDiv) contentDiv.classList.remove('hidden');
+
+  // Populate Profile Card
+  const infoGrid = document.getElementById('univ-maxer-student-info');
+  if (infoGrid) {
+    let totalCredits = 0;
+    Object.keys(student.grades).forEach(subCode => {
+      const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+      totalCredits += credits;
+    });
+
+    infoGrid.innerHTML = `
+      <div class="detail-item">
+        <span>Student Name</span>
+        <span>${student.name || 'N/A'}</span>
+      </div>
+      <div class="detail-item">
+        <span>Register Number</span>
+        <span>${student.id}</span>
+      </div>
+      <div class="detail-item">
+        <span>Branch / Department</span>
+        <span>${student.branch} - ${branchNames[student.branch] || 'Engineering'}</span>
+      </div>
+      <div class="detail-item">
+        <span>Total Semester Credits</span>
+        <span>${totalCredits}</span>
+      </div>
+      <div class="detail-item">
+        <span>Baseline SGPA</span>
+        <span style="color: var(--accent-terracotta);">${student.sgpa.toFixed(2)}</span>
+      </div>
+      <div class="detail-item">
+        <span>Academic Status</span>
+        <span style="color: ${student.status === 'PASS' ? 'var(--success)' : 'var(--danger)'}; font-weight: 600;">
+          ${student.status === 'PASS' ? 'Full Pass' : 'Supply (' + student.backlogs + ' Backlogs)'}
+        </span>
+      </div>
+    `;
+  }
+
+  // Populate Table Body
+  const tbody = document.getElementById('univ-maxer-table-body');
+  if (tbody) {
+    tbody.innerHTML = '';
+    
+    // Sort courses alphabetically
+    const courseCodes = Object.keys(student.grades).sort();
+
+    courseCodes.forEach(subCode => {
+      const currentGrade = student.grades[subCode];
+      const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+      const subName = state.subjects[subCode] || 'Subject Course';
+      
+      const tr = document.createElement('tr');
+      const currentPts = maxerGradePoints[currentGrade] || 0.0;
+      
+      // KTU full mapping sequence (ascending order: I, FE, F, P, D, C, C+, B, B+, A, A+, S)
+      const fullGradesSequence = ['I', 'FE', 'F', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
+      
+      // Sort in descending order for the dropdown choices representation
+      const sortedGrades = [...fullGradesSequence].sort((a, b) => maxerGradePoints[b] - maxerGradePoints[a]);
+
+      let optionsHtml = '';
+      sortedGrades.forEach(g => {
+        const selectedAttr = g === currentGrade ? 'selected' : '';
+        optionsHtml += `<option value="${g}" ${selectedAttr}>${g} (${maxerGradePoints[g].toFixed(1)})</option>`;
+      });
+
+      tr.innerHTML = `
+        <td><span class="subject-badge">${subCode}</span> <strong>${subName}</strong></td>
+        <td style="text-align: center;">${credits}</td>
+        <td style="text-align: center;"><span class="grade-badge ${currentGrade.toLowerCase().replace('+', 'plus')}">${currentGrade}</span></td>
+        <td style="text-align: center;">
+          <select class="select-filter univ-maxer-grade-select" data-subject="${subCode}" data-credits="${credits}" style="width: 100%; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+            ${optionsHtml}
+          </select>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Add event listeners to dropdown changes
+    const dropdowns = document.querySelectorAll('.univ-maxer-grade-select');
+    dropdowns.forEach(select => {
+      select.addEventListener('change', () => calculateUnivMaxedSgpa(student));
+    });
+
+    calculateUnivMaxedSgpa(student);
+  }
+}
+
+function calculateUnivMaxedSgpa(student) {
+  let totalCredits = 0;
+  let baselineWeightedPoints = 0;
+  let simulatedWeightedPoints = 0;
+
+  const dropdowns = document.querySelectorAll('.univ-maxer-grade-select');
+  dropdowns.forEach(select => {
+    const subCode = select.dataset.subject;
+    const credits = parseFloat(select.dataset.credits) || 0;
+    const originalGrade = student.grades[subCode];
+    const simulatedGrade = select.value;
+
+    const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
+    const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
+
+    baselineWeightedPoints += originalPts * credits;
+    simulatedWeightedPoints += simulatedPts * credits;
+    totalCredits += credits;
+  });
+
+  const baselineSgpa = totalCredits > 0 ? (baselineWeightedPoints / totalCredits) : 0.0;
+  const simulatedSgpa = totalCredits > 0 ? (simulatedWeightedPoints / totalCredits) : 0.0;
+  const delta = simulatedSgpa - baselineSgpa;
+
+  const summary = document.getElementById('univ-maxer-summary');
+  if (summary) {
+    const deltaBadgeHtml = delta > 0 
+      ? `<span class="maxer-delta-badge">+${delta.toFixed(2)}</span>` 
+      : `<span style="font-size: 1.1rem; font-weight: 700; color: var(--text-muted);">+0.00</span>`;
+
+    summary.innerHTML = `
+      <div class="maxer-summary-item">
+        <span>Current SGPA</span>
+        <span>${baselineSgpa.toFixed(2)}</span>
+      </div>
+      <div class="maxer-summary-item">
+        <span>Simulated SGPA</span>
+        <span style="color: var(--accent-terracotta);">${simulatedSgpa.toFixed(2)}</span>
+      </div>
+      <div class="maxer-summary-item">
+        <span>Potential Increase</span>
+        <span>${deltaBadgeHtml}</span>
+      </div>
+    `;
+  }
+}
+
+function renderUnivMaxerView() {
+  if (state.loadedMaxerStudentId) {
+    renderUnivMaxerStudentData();
+  } else {
+    const emptyDiv = document.getElementById('univ-maxer-empty');
+    const contentDiv = document.getElementById('univ-maxer-content');
+    if (emptyDiv) emptyDiv.classList.remove('hidden');
+    if (contentDiv) contentDiv.classList.add('hidden');
+  }
 }
