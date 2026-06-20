@@ -405,58 +405,45 @@ function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
         cleanedName = cleanedName.substring(0, newlineIndex).trim();
     }
 
-    // 1. Check for standalone 416 project entries embedded in text
+    // 1. Identify embedded 416 projects
     const vivaMatch = cleanedName.match(/\b(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)\b/i);
     if (vivaMatch) {
         extractedVivaCode = vivaMatch[1].toUpperCase();
     }
 
     // 2. Heavy-Duty Bleed Separation Layer
-    // Scan for ANY other course code format bleeding into this name string (excluding itself)
     const codeBleedMatch = cleanedName.match(/\b([A-Z]{3,4}\d{3})\b/i);
     if (codeBleedMatch && codeBleedMatch[1].toUpperCase() !== rawSubjectCode.toUpperCase()) {
         const bleedingCode = codeBleedMatch[1].toUpperCase();
         const bleedIndex = cleanedName.indexOf(codeBleedMatch[0]);
         
-        // Extract the name belonging to the swallowed/bleeding course code
         let bleedingCourseName = cleanedName.substring(bleedIndex + codeBleedMatch[0].length).trim();
-        
-        // Truncate any further nested bleeding if multiple codes exist on the line
         const nextBleed = bleedingCourseName.match(/\b([A-Z]{3,4}\d{3})\b/i);
         if (nextBleed) {
             bleedingCourseName = bleedingCourseName.substring(0, bleedingCourseName.indexOf(nextBleed[0])).trim();
         }
         
-        // Trim the primary subject name right before the bleeding code begins
         cleanedName = cleanedName.substring(0, bleedIndex).trim();
         
-        // Proactively register the swallowed course and its clean name into the application state
         if (bleedingCode && bleedingCourseName && !bleedingCourseName.match(/^[A-Z]{3,4}\d{3}$/)) {
-            bleedingCourseName = bleedingCourseName
-                .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
-                .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-            
-            if (bleedingCourseName && typeof state !== 'undefined' && state.subjects) {
+            if (typeof state !== 'undefined' && state.subjects) {
                 state.subjects[bleedingCode] = bleedingCourseName;
             }
         }
     }
 
-    // 3. Clear out any self-referencing code repetitions inside the name block
-    const selfCodeRegex = new RegExp(`\\b${rawSubjectCode}\\b`, 'gi');
-    cleanedName = cleanedName.replace(selfCodeRegex, '');
-
-    // 4. Scrub out common structural junk phrases
+    // 3. Vaporize layout structural headers, student registration formats, and code mirrors
     cleanedName = cleanedName
+        .replace(/(R|r)?egister\s+No\.?\s+Course\s+Code\s*\(Grade\)/gi, '') // Wipes out "Register No Course Code (Grade)"
+        .replace(/\b[A-Z]{3,4}\d{2}[A-Z]{2,4}\d{2,4}\b/gi, '')             // Wipes out student roll numbers (e.g. LPRC22ME019)
+        .replace(new RegExp(`\\b${rawSubjectCode}\\b`, 'gi'), '')          // Wipes out duplicates of itself
         .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
         .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
         .replace(/PROJECT\s+PHASE\s+II\s+R/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
 
-    // 5. Fallbacks if cleaning or truncation leaves the string empty
+    // 4. Uniform Fallback System
     if (!cleanedName) {
         if (rawSubjectCode.endsWith('404')) {
             cleanedName = "COMPREHENSIVE VIVA VOCE";
@@ -483,19 +470,24 @@ function parseKTUResultText(text) {
   // "MET416 COMPOSITE MATERIALS"
   // "MET468 ADDITIVE MANUFACTURING"
   state.subjects = {};
+  // CRITICAL: Move regex here to avoid global state accumulation across document runs
   const courseMappingRegex = /\b([A-Z]{3,4}\d{3})\b([\s\S]+?)(?=\b[A-Z]{3,4}\d{3}\b|$)/g;
+  courseMappingRegex.lastIndex = 0; // Clear execution pointer completely
+
   let subMatch;
   while ((subMatch = courseMappingRegex.exec(text)) !== null) {
     const code = subMatch[1].toUpperCase();
     const name = subMatch[2].trim();
-    // Exclude noise (like register number patterns or headers matching this shape)
+    
     if (!code.match(/^[A-Z]{5,}/) && !name.match(/^(GENERATED|APJ ABDUL|REG NO|COURSE CODE)/i) && !name.startsWith('(')) {
       const { cleanedName, extractedVivaCode } = cleanAndExtractSubjects(code, name);
-      if (extractedVivaCode) {
-        state.subjects[code] = cleanedName || (name.toUpperCase().includes("COURSE") ? "COMPREHENSIVE COURSE VIVA" : "COMPREHENSIVE VIVA VOCE");
-        state.subjects[extractedVivaCode] = "PROJECT PHASE II";
-      } else {
+      
+      if (typeof state !== 'undefined' && state.subjects) {
         state.subjects[code] = cleanedName;
+        
+        if (extractedVivaCode) {
+          state.subjects[extractedVivaCode] = "PROJECT PHASE II";
+        }
       }
     }
   }
