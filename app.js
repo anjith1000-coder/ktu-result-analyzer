@@ -205,6 +205,7 @@ function setupEventListeners() {
   // Direct Export Triggers
   document.getElementById('btn-export-excel').addEventListener('click', exportToExcelDirect);
   document.getElementById('btn-export-pdf').addEventListener('click', exportToPdfDirect);
+  document.getElementById('btn-print-pdf').addEventListener('click', printExecutiveReport);
 
   // Demo Mock Data Trigger
   document.getElementById('btn-mock-data').addEventListener('click', loadDemoMockData);
@@ -666,6 +667,7 @@ function parseKTUResultText(text) {
   document.getElementById('analysis-section').classList.remove('hidden');
   document.getElementById('btn-export-excel').classList.remove('hidden');
   document.getElementById('btn-export-pdf').classList.remove('hidden');
+  document.getElementById('btn-print-pdf').classList.remove('hidden');
 
   // Run stats calculations
   recalculateAndRefresh();
@@ -2421,6 +2423,7 @@ function loadDemoMockData() {
   document.getElementById('analysis-section').classList.remove('hidden');
   document.getElementById('btn-export-excel').classList.remove('hidden');
   document.getElementById('btn-export-pdf').classList.remove('hidden');
+  document.getElementById('btn-print-pdf').classList.remove('hidden');
 
   recalculateAndRefresh();
   
@@ -2778,4 +2781,399 @@ function renderUnivMaxerView() {
     if (emptyDiv) emptyDiv.classList.remove('hidden');
     if (contentDiv) contentDiv.classList.add('hidden');
   }
+}
+
+// Pre-print redraw hook
+window.onbeforeprint = function() {
+  if (typeof Chart !== 'undefined' && Chart.instances) {
+    Object.values(Chart.instances).forEach(chartInstance => {
+      chartInstance.resize();
+      chartInstance.render();
+    });
+  }
+};
+
+// Professor Report Builder Engine
+function generateProfessorReportDOM() {
+  const reportArea = document.getElementById('printable-report-area');
+  if (!reportArea) return;
+  reportArea.innerHTML = '';
+
+  const mainFilter = document.getElementById('dept-operation-filter');
+  const selectedBranch = mainFilter ? mainFilter.value : 'ALL';
+  const filterScope = selectedBranch === 'ALL' ? 'All Departments' : (branchNames[selectedBranch] || selectedBranch);
+
+  const collegeName = "PROVIDENCE COLLEGE OF ENGINEERING";
+  const examTitle = "KTU B.Tech Semester Examination Results";
+  const timestamp = new Date().toLocaleString();
+  const schemeText = (state.scheme ? state.scheme + " Scheme" : "2019 Scheme");
+
+  const activeStudents = getActiveStudents();
+  const regularStudents = activeStudents.filter(s => s.isRegular);
+  const regularAppeared = regularStudents.length;
+  const regularPassed = regularStudents.filter(s => s.status === 'PASS').length;
+  const corePassRate = regularAppeared > 0 ? ((regularPassed / regularAppeared) * 100).toFixed(1) : "0.0";
+
+  const supplyStudents = activeStudents.filter(s => s.isSupply);
+  const supplyAppeared = supplyStudents.length;
+  const supplyCleared = supplyStudents.filter(s => s.status === 'PASS').length;
+  const supplyClearanceText = `${supplyCleared} / ${supplyAppeared} Cleared`;
+
+  // Calculate High-Risk Alerts (fail rate > 20%)
+  const subjectAgg = {};
+  activeStudents.forEach(student => {
+    Object.keys(student.grades).forEach(subCode => {
+      if (!subjectAgg[subCode]) {
+        subjectAgg[subCode] = {
+          code: subCode,
+          name: state.subjects[subCode] || subCode,
+          registered: 0,
+          passed: 0,
+          failed: 0
+        };
+      }
+      const grade = student.grades[subCode];
+      subjectAgg[subCode].registered++;
+      if (['F', 'FE', 'I'].includes(grade)) {
+        subjectAgg[subCode].failed++;
+      } else {
+        subjectAgg[subCode].passed++;
+      }
+    });
+  });
+
+  const alerts = [];
+  Object.values(subjectAgg).forEach(sub => {
+    const failRate = sub.registered > 0 ? (sub.failed / sub.registered) * 100 : 0;
+    if (failRate > 20) {
+      alerts.push({
+        code: sub.code,
+        name: sub.name,
+        registered: sub.registered,
+        failed: sub.failed,
+        failRate: failRate.toFixed(1)
+      });
+    }
+  });
+
+  // Sort alerts by failRate descending
+  alerts.sort((a, b) => b.failRate - a.failRate);
+
+  // High-Risk alerts HTML
+  let alertsHtml = '';
+  if (alerts.length > 0) {
+    alertsHtml = `
+      <div style="border: 2px solid #e74c3c; border-radius: 8px; padding: 15px; background: #fdf2f2; margin-top: 15px; page-break-inside: avoid;">
+        <h4 style="margin: 0 0 10px 0; color: #c0392b; font-size: 11pt; text-transform: uppercase; display: flex; align-items: center; gap: 6px;">
+          ⚠️ High-Risk Academic Alerts (Failure Rate &gt; 20%)
+        </h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt; background: #fff;">
+          <thead>
+            <tr style="background: #e74c3c; color: #fff;">
+              <th style="padding: 6px 8px; text-align: left; border: 1px solid #c0392b;">Course Code</th>
+              <th style="padding: 6px 8px; text-align: left; border: 1px solid #c0392b;">Course Title</th>
+              <th style="padding: 6px 8px; text-align: center; border: 1px solid #c0392b;">Registered</th>
+              <th style="padding: 6px 8px; text-align: center; border: 1px solid #c0392b;">Failures</th>
+              <th style="padding: 6px 8px; text-align: center; border: 1px solid #c0392b;">Failure %</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${alerts.map(a => `
+              <tr>
+                <td style="padding: 6px 8px; border: 1px solid #BDC3C7;"><strong>${a.code}</strong></td>
+                <td style="padding: 6px 8px; border: 1px solid #BDC3C7;">${a.name}</td>
+                <td style="padding: 6px 8px; border: 1px solid #BDC3C7; text-align: center;">${a.registered}</td>
+                <td style="padding: 6px 8px; border: 1px solid #BDC3C7; text-align: center; color: #c0392b; font-weight: bold;">${a.failed}</td>
+                <td style="padding: 6px 8px; border: 1px solid #BDC3C7; text-align: center; color: #c0392b; font-weight: bold;">${a.failRate}%</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    alertsHtml = `
+      <div style="border: 2px solid #2ecc71; border-radius: 8px; padding: 15px; background: #ebfcf2; margin-top: 15px; page-break-inside: avoid; text-align: center; color: #27ae60; font-weight: bold; font-size: 10pt;">
+        ✓ All courses have pass rates above 80%. No high-risk academic alerts triggered.
+      </div>
+    `;
+  }
+
+  // Charts
+  const gradeDistImg = (state.charts && state.charts.gradeDist) 
+    ? `<img src="${state.charts.gradeDist.toBase64Image()}" style="max-width: 100%; max-height: 250px; display: block; margin: 15px auto;" />`
+    : '<div style="text-align: center; color: #7f8c8d; padding: 2rem; border: 1px solid #BDC3C7;">Grade Distribution Chart is empty or not rendered.</div>';
+
+  const deptPassImg = (state.charts && state.charts.deptPass)
+    ? `<img src="${state.charts.deptPass.toBase64Image()}" style="max-width: 100%; max-height: 250px; display: block; margin: 15px auto;" />`
+    : '<div style="text-align: center; color: #7f8c8d; padding: 2rem; border: 1px solid #BDC3C7;">Department Pass Percentage Chart is empty or not rendered.</div>';
+
+  // Page 2 Table Rows
+  const activeDepts = getActiveDepartments();
+  const deptsList = Object.values(activeDepts).sort((a, b) => b.passPercentage - a.passPercentage);
+  let deptRowsHtml = '';
+  deptsList.forEach((dept, index) => {
+    const name = (state.customBranchNames && state.customBranchNames[dept.code]) || branchNames[dept.code] || dept.name;
+    deptRowsHtml += `
+      <tr>
+        <td style="text-align: center; border: 1px solid #BDC3C7;">${index + 1}</td>
+        <td style="border: 1px solid #BDC3C7;"><strong>${dept.code}</strong></td>
+        <td style="border: 1px solid #BDC3C7;">${name}</td>
+        <td style="text-align: center; border: 1px solid #BDC3C7;">${dept.appeared}</td>
+        <td style="text-align: center; border: 1px solid #BDC3C7;">${dept.fullPass}</td>
+        <td style="text-align: center; border: 1px solid #BDC3C7;">${dept.supply}</td>
+        <td style="text-align: center; border: 1px solid #BDC3C7; font-weight: bold;">${dept.passPercentage.toFixed(1)}%</td>
+        <td style="text-align: center; border: 1px solid #BDC3C7;">${dept.averageSgpa.toFixed(2)}</td>
+      </tr>
+    `;
+  });
+
+  // Page 3 Table Rows
+  const top15 = [...regularStudents].sort((a, b) => b.sgpa - a.sgpa).slice(0, 15);
+  let topRowsHtml = '';
+  if (top15.length > 0) {
+    top15.forEach((student, index) => {
+      const studentName = student.name || state.nameMap[student.id] || "Student " + student.id.slice(-6);
+      topRowsHtml += `
+        <tr>
+          <td style="text-align: center; border: 1px solid #BDC3C7;">${index + 1}</td>
+          <td style="border: 1px solid #BDC3C7;"><strong>${student.id}</strong></td>
+          <td style="border: 1px solid #BDC3C7;">${studentName}</td>
+          <td style="text-align: center; border: 1px solid #BDC3C7;">${student.branch}</td>
+          <td style="text-align: center; border: 1px solid #BDC3C7; font-weight: bold; color: #2c3e50;">${student.sgpa.toFixed(2)}</td>
+        </tr>
+      `;
+    });
+  } else {
+    topRowsHtml = '<tr><td colspan="5" style="text-align: center; padding: 10px; border: 1px solid #BDC3C7;">No student data available.</td></tr>';
+  }
+
+  // Page 4 Table Rows
+  const backlogStudents = activeStudents.filter(s => s.backlogs > 0);
+  const sortedBacklogStudents = [...backlogStudents].sort((a, b) => b.backlogs - a.backlogs);
+  let backlogRowsHtml = '';
+  if (sortedBacklogStudents.length > 0) {
+    sortedBacklogStudents.forEach(student => {
+      const failedCodes = Object.keys(student.grades).filter(subCode => ['F', 'FE', 'I'].includes(student.grades[subCode]));
+      const studentName = student.name || state.nameMap[student.id] || "Student " + student.id.slice(-6);
+      backlogRowsHtml += `
+        <tr>
+          <td style="border: 1px solid #BDC3C7;"><strong>${student.id}</strong></td>
+          <td style="border: 1px solid #BDC3C7;">${studentName}</td>
+          <td style="text-align: center; border: 1px solid #BDC3C7;">${student.branch}</td>
+          <td style="text-align: center; border: 1px solid #BDC3C7; color: #c0392b; font-weight: bold;">${student.backlogs}</td>
+          <td style="border: 1px solid #BDC3C7; font-size: 9.5pt;">${failedCodes.join(', ')}</td>
+        </tr>
+      `;
+    });
+  } else {
+    backlogRowsHtml = '<tr><td colspan="5" style="text-align: center; padding: 10px; border: 1px solid #BDC3C7; color: #27ae60;">No active student backlogs in this cohort.</td></tr>';
+  }
+
+  const commonHeader = (pageNum) => `
+    <div style="border-bottom: 2px solid #34495e; padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+      <div>
+        <h2 style="margin: 0; color: #2c3e50; font-size: 15pt; text-transform: uppercase; font-family: 'Segoe UI', Helvetica, sans-serif; letter-spacing: 0.5px;">${collegeName}</h2>
+        <h3 style="margin: 3px 0 0 0; color: #7f8c8d; font-size: 10.5pt; font-weight: 500;">${examTitle} (${schemeText})</h3>
+      </div>
+      <div style="text-align: right; font-size: 8.5pt; color: #95a5a6; font-family: 'Segoe UI', Helvetica, sans-serif;">
+        <div><strong>Filter Scope:</strong> ${filterScope}</div>
+        <div><strong>Page ${pageNum} of 4</strong></div>
+      </div>
+    </div>
+  `;
+
+  const commonFooter = `
+    <div style="border-top: 1px solid #e0e0e0; margin-top: 30px; padding-top: 10px; display: flex; justify-content: space-between; font-size: 8pt; color: #bdc3c7;">
+      <div>KTU Result Analyzer Engine &copy; 2026</div>
+      <div>Confidential - Academic Review Purposes Only</div>
+      <div>Report Timestamp: ${timestamp}</div>
+    </div>
+  `;
+
+  // Page 1 HTML
+  const page1 = `
+    <div class="report-page-section" style="page-break-after: always; page-break-inside: avoid; min-height: 100%;">
+      ${commonHeader(1)}
+      <div style="text-align: center; margin: 20px 0 30px 0;">
+        <h1 style="margin: 0; font-size: 20pt; color: #2c3e50; border-bottom: 2px solid #34495e; display: inline-block; padding-bottom: 5px;">EXECUTIVE SUMMARY</h1>
+      </div>
+      
+      <!-- KPI Cards Grid -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 25px;">
+        <div style="border: 1px solid #BDC3C7; border-top: 4px solid #2980b9; padding: 12px; border-radius: 4px; background: #fafafa; text-align: center;">
+          <div style="font-size: 8.5pt; color: #7f8c8d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Regular Appeared</div>
+          <div style="font-size: 18pt; font-weight: bold; color: #2c3e50;">${regularAppeared}</div>
+          <div style="font-size: 8pt; color: #95a5a6; margin-top: 3px;">Regular students</div>
+        </div>
+        <div style="border: 1px solid #BDC3C7; border-top: 4px solid #27ae60; padding: 12px; border-radius: 4px; background: #fafafa; text-align: center;">
+          <div style="font-size: 8.5pt; color: #7f8c8d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Total Passed</div>
+          <div style="font-size: 18pt; font-weight: bold; color: #27ae60;">${regularPassed}</div>
+          <div style="font-size: 8pt; color: #95a5a6; margin-top: 3px;">Passed all subjects</div>
+        </div>
+        <div style="border: 1px solid #BDC3C7; border-top: 4px solid #f39c12; padding: 12px; border-radius: 4px; background: #fafafa; text-align: center;">
+          <div style="font-size: 8.5pt; color: #7f8c8d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Core Pass Rate</div>
+          <div style="font-size: 18pt; font-weight: bold; color: #f39c12;">${corePassRate}%</div>
+          <div style="font-size: 8pt; color: #95a5a6; margin-top: 3px;">Overall pass pct</div>
+        </div>
+        <div style="border: 1px solid #BDC3C7; border-top: 4px solid #8e44ad; padding: 12px; border-radius: 4px; background: #fafafa; text-align: center;">
+          <div style="font-size: 8.5pt; color: #7f8c8d; text-transform: uppercase; font-weight: bold; margin-bottom: 5px;">Supply Clearances</div>
+          <div style="font-size: 15pt; font-weight: bold; color: #8e44ad; margin-top: 4px;">${supplyClearanceText}</div>
+          <div style="font-size: 8pt; color: #95a5a6; margin-top: 3px;">Supplementary cohort</div>
+        </div>
+      </div>
+
+      <!-- Alerts Panel -->
+      ${alertsHtml}
+
+      <!-- Grade Distribution Section -->
+      <div style="margin-top: 25px; border: 1px solid #BDC3C7; border-radius: 6px; padding: 15px; page-break-inside: avoid;">
+        <h4 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 11pt; text-transform: uppercase; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px;">Consolidated Grade Distribution</h4>
+        ${gradeDistImg}
+      </div>
+
+      ${commonFooter}
+    </div>
+  `;
+
+  // Page 2 HTML
+  const page2 = `
+    <div class="report-page-section" style="page-break-after: always; page-break-inside: avoid; min-height: 100%;">
+      ${commonHeader(2)}
+      <div style="text-align: center; margin: 20px 0 25px 0;">
+        <h1 style="margin: 0; font-size: 18pt; color: #2c3e50; border-bottom: 2px solid #34495e; display: inline-block; padding-bottom: 5px;">DEPARTMENT PERFORMANCE METRICS</h1>
+      </div>
+
+      <div style="margin-bottom: 25px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+          <thead>
+            <tr style="background: #34495e; color: #ffffff;">
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: center; width: 60px;">Rank</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: left; width: 90px;">Branch Code</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: left;">Department Name</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: center; width: 90px;">Appeared</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: center; width: 90px;">Full Pass</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: center; width: 95px;">With Supply</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: center; width: 90px;">Pass %</th>
+              <th style="padding: 6px; border: 1px solid #BDC3C7; text-align: center; width: 100px;">Average SGPA</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${deptRowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Department Pass Chart -->
+      <div style="border: 1px solid #BDC3C7; border-radius: 6px; padding: 15px; page-break-inside: avoid; margin-top: 20px;">
+        <h4 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 11pt; text-transform: uppercase; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px;">Department-wise Pass Percentage</h4>
+        ${deptPassImg}
+      </div>
+
+      ${commonFooter}
+    </div>
+  `;
+
+  // Page 3 HTML
+  const page3 = `
+    <div class="report-page-section" style="page-break-after: always; page-break-inside: avoid; min-height: 100%;">
+      ${commonHeader(3)}
+      <div style="text-align: center; margin: 20px 0 25px 0;">
+        <h1 style="margin: 0; font-size: 18pt; color: #2c3e50; border-bottom: 2px solid #34495e; display: inline-block; padding-bottom: 5px;">TOP 15 ACADEMIC PERFORMERS (REGULAR COHORT)</h1>
+      </div>
+
+      <div style="margin-bottom: 25px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+          <thead>
+            <tr style="background: #34495e; color: #ffffff;">
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: center; width: 70px;">Rank</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: left; width: 150px;">Roll Number</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: left;">Student Name</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: center; width: 120px;">Department</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: center; width: 120px;">SGPA</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${topRowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      ${commonFooter}
+    </div>
+  `;
+
+  // Page 4 HTML
+  const page4 = `
+    <div class="report-page-section" style="page-break-inside: avoid; min-height: 100%;">
+      ${commonHeader(4)}
+      <div style="text-align: center; margin: 20px 0 25px 0;">
+        <h1 style="margin: 0; font-size: 18pt; color: #2c3e50; border-bottom: 2px solid #34495e; display: inline-block; padding-bottom: 5px;">ACADEMIC REMEDIATION & BACKLOG TRACKER</h1>
+      </div>
+
+      <div style="margin-bottom: 25px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 10pt;">
+          <thead>
+            <tr style="background: #34495e; color: #ffffff;">
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: left; width: 150px;">Roll Number</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: left;">Student Name</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: center; width: 100px;">Department</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: center; width: 120px;">Backlog Count</th>
+              <th style="padding: 8px 6px; border: 1px solid #BDC3C7; text-align: left;">Failed Subject Codes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${backlogRowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      ${commonFooter}
+    </div>
+  `;
+
+  // Combine and inject
+  reportArea.innerHTML = page1 + page2 + page3 + page4;
+}
+
+// Print Executive Report Flow Manager
+function printExecutiveReport() {
+  const activeTabBtn = document.querySelector('.tab-btn.active');
+  const activeTabId = activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'dashboard';
+
+  // Programmatically click dashboard tab to ensure chart canvases are rendered
+  const dashboardTabBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
+  if (dashboardTabBtn) {
+    dashboardTabBtn.click();
+  }
+
+  // Brief timeout to let layout repaint
+  setTimeout(() => {
+    try {
+      generateProfessorReportDOM();
+      document.body.classList.add('print-report-mode');
+      
+      // Trigger system print dialogue
+      window.print();
+      
+      // Cleanup and restore tab after print dialogue is closed
+      document.body.classList.remove('print-report-mode');
+      const reportArea = document.getElementById('printable-report-area');
+      if (reportArea) {
+        reportArea.innerHTML = '';
+      }
+      if (activeTabBtn) {
+        activeTabBtn.click();
+      }
+    } catch (e) {
+      console.error("Print pipeline failed", e);
+      alert("Failed to compile report metrics. Error: " + e.message);
+      
+      // Cleanup on error
+      document.body.classList.remove('print-report-mode');
+      if (activeTabBtn) {
+        activeTabBtn.click();
+      }
+    }
+  }, 250);
 }

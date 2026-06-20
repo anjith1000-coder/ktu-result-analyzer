@@ -777,106 +777,100 @@ tr:hover td {
   margin: 0;
 }
 
+#printable-report-area {
+  display: none;
+}
+
 /* Print Styles */
 @media print {
-  header,
-  .upload-grid,
-  .settings-panel,
-  .filter-bar,
-  .tabs-container,
-  #empty-state-section,
-  footer,
-  #btn-mock-data,
-  #btn-export-excel,
-  #btn-export-pdf,
-  .scheme-select-wrapper,
-  .btn,
-  .modal-backdrop,
-  .backlog-filter-control {
-    display: none !important;
+  /* 1. Reset Global Canvas for Paper */
+  html, body {
+      background: #FFFFFF !important;
+      color: #000000 !important;
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif !important;
+      font-size: 11pt !important;
+      margin: 0 !important;
+      padding: 0 !important;
   }
 
-  #analysis-section {
-    display: block !important;
+  /* 2. Strip Away Web UI Elements */
+  nav, .navbar, #sidebar, .btn, button, .file-upload-zone, 
+  #dept-filter-wrapper, .no-print, header, .upload-grid, 
+  .settings-panel, .tabs-container, #empty-state-section, 
+  footer, .modal-backdrop, .credit-slider-container, 
+  .backlog-filter-control, .scheme-select-wrapper {
+      display: none !important;
   }
-  
-  /* Force all tab content containers to hide unless explicitly active */
+
+  /* 3. Eliminate Tab Overlap Contamination */
   .tab-content {
       display: none !important;
       position: relative !important;
       visibility: hidden !important;
+      width: 100% !important;
   }
-  .tab-content.active, .tab-content:not(.hidden) {
+  
+  /* Only show active tab OR report area */
+  .tab-content.active {
       display: block !important;
       visibility: visible !important;
+      position: static !important;
+      overflow: visible !important;
   }
-  /* Prevent elements from breaking awkwardly across pages */
-  table, tr, .card, .metric-card {
+
+  body.print-report-mode .tab-content {
+      display: none !important;
+  }
+
+  body.print-report-mode #printable-report-area {
+      display: block !important;
+      visibility: visible !important;
+      position: static !important;
+      overflow: visible !important;
+  }
+
+  /* 4. Elegant Page-Breaking Control */
+  .report-page-section {
+      page-break-after: always !important;
+      page-break-inside: avoid !important;
+  }
+  
+  .card, table, tr, canvas, .chart-card, .metric-card {
       page-break-inside: avoid !important;
       position: static !important;
   }
-
-  body {
-    background-color: #FFFFFF !important;
-    color: #000000 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    font-size: 10pt !important;
-  }
-
-  .container {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
+  
   table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    margin-bottom: 20px !important;
+      width: 100% !important;
+      border-collapse: collapse !important;
   }
-
+  
   th, td {
-    border: 1px solid #000000 !important;
-    padding: 6px 8px !important;
-    color: #000000 !important;
-    background-color: transparent !important;
-  }
-
-  tr {
-    page-break-inside: avoid !important;
+      border: 1px solid #BDC3C7 !important;
+      padding: 6px 8px !important;
+      font-size: 10pt !important;
+      background-color: transparent !important;
+      color: #000000 !important;
   }
 
   thead {
-    display: table-header-group !important;
-  }
-  
-  h2, h3, .chart-card {
-    page-break-inside: avoid !important;
-  }
-
-  .table-card,
-  .table-wrapper {
-    page-break-inside: auto !important;
-    height: auto !important;
-    overflow: visible !important;
+      display: table-header-group !important;
   }
 
   /* Flexbox & Grid Container fixes for Multi-page Print Layouts */
   .charts-grid,
   .dashboard-metrics,
   #tab-backlog > div {
-    display: block !important;
+      display: block !important;
   }
 
   .charts-grid > div,
   .dashboard-metrics > div,
   #tab-backlog > div > div {
-    width: 100% !important;
-    margin-bottom: 1.5rem !important;
-    height: auto !important;
-    overflow: visible !important;
+      width: 100% !important;
+      margin-bottom: 1.5rem !important;
+      height: auto !important;
+      overflow: visible !important;
   }
 }
 
