@@ -1252,11 +1252,6 @@ function renderStudentsTable() {
         </span>
       </td>
       <td style="text-align: center;">
-        <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="openSgpaMaxer('${stud.id}')">
-          📊 Optimize
-        </button>
-      </td>
-      <td style="text-align: center;">
         ${actionsHtml}
       </td>
     `;
@@ -1291,7 +1286,7 @@ function renderBacklogsView() {
 
   const topBacklogStudents = studentsWithBacklogs.slice(0, 15);
   if (topBacklogStudents.length === 0) {
-    tbodyMax.innerHTML = `<tr><td colspan="${hasNames ? 5 : 4}" style="text-align:center; color:var(--text-muted);">No backlogs recorded! Outstanding campus performance.</td></tr>`;
+    tbodyMax.innerHTML = `<tr><td colspan="${hasNames ? 6 : 5}" style="text-align:center; color:var(--text-muted);">No backlogs recorded! Outstanding campus performance.</td></tr>`;
   } else {
     topBacklogStudents.forEach(stud => {
       const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I'].includes(stud.grades[code])).join(', ');
@@ -1304,6 +1299,11 @@ function renderBacklogsView() {
         <td style="text-align: center; color: var(--danger); font-weight: 700;">${stud.backlogs}</td>
         <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${failedSubs}">
           <span style="color: var(--danger); font-size: 0.85rem;">${failedSubs}</span>
+        </td>
+        <td style="text-align: center;">
+          <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="openSgpaMaxer('${stud.id}')">
+            📊 Optimize
+          </button>
         </td>
       `;
       tbodyMax.appendChild(tr);
@@ -1463,11 +1463,11 @@ const maxerGradePoints = {
   'A+': 9.0,
   'A': 8.5,
   'B+': 8.0,
-  'B': 7.0,
-  'C+': 6.0,
-  'C': 5.0,
-  'D': 4.0,
-  'P': 4.0,
+  'B': 7.5,
+  'C+': 7.0,
+  'C': 6.5,
+  'D': 6.0,
+  'P': 5.5,
   'F': 0.0,
   'FE': 0.0,
   'I': 0.0

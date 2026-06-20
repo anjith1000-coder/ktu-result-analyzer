@@ -430,7 +430,7 @@ calculateMaxedSgpa(studentForMaxer);
 console.log('SGPA Maxer Summary Output HTML:\n', summaryCardContent);
 
 // Verify calculations in output text
-if (!summaryCardContent.includes('4.80') || !summaryCardContent.includes('8.80') || !summaryCardContent.includes('+4.00')) {
+if (!summaryCardContent.includes('4.95') || !summaryCardContent.includes('8.80') || !summaryCardContent.includes('+3.85')) {
   console.error('[FAIL] SGPA Maxer calculations or HTML output are incorrect.');
   process.exit(1);
 }
