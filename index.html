@@ -104,17 +104,17 @@
           <div class="glass-panel metric-card cyan">
             <div class="metric-label">Appeared Students</div>
             <div class="metric-value" id="kpi-appeared">0</div>
-            <div class="metric-sub" id="kpi-appeared-sub">Across all departments</div>
+            <div class="metric-sub" id="kpi-appeared-sub">Regular cohort students only</div>
           </div>
           <div class="glass-panel metric-card success">
             <div class="metric-label">Overall Pass Rate</div>
             <div class="metric-value" id="kpi-pass-rate">0.0%</div>
-            <div class="metric-sub" id="kpi-pass-rate-sub">Passed all subjects</div>
+            <div class="metric-sub" id="kpi-pass-rate-sub">Passed all subjects (Regular only)</div>
           </div>
           <div class="glass-panel metric-card danger">
             <div class="metric-label">Supply/Backlog Students</div>
             <div class="metric-value" id="kpi-failed">0</div>
-            <div class="metric-sub" id="kpi-failed-sub">At least one fail/incomplete</div>
+            <div class="metric-sub" id="kpi-failed-sub">With supply/incomplete (Regular only)</div>
           </div>
           <div class="glass-panel metric-card warning">
             <div class="metric-label">Top Branch</div>
@@ -178,6 +178,14 @@
                 <!-- Dynamically generated -->
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- Supplementary Clearances Summary -->
+        <div class="glass-panel" style="margin-top: 1.5rem; padding: 1.5rem;" id="supply-clearance-panel">
+          <h3 style="font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; border-bottom: 1.5px solid var(--border-color); padding-bottom: 0.5rem;">⚙️ Supplementary Clearances (Old-Batch Supply Pass Summary)</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;" id="supply-clearance-metrics">
+            <!-- Dynamically generated -->
           </div>
         </div>
       </div>

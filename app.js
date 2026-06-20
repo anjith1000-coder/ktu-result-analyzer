@@ -632,8 +632,38 @@ function processParsedData() {
     });
   });
   
-  // 1. Calculate individual SGPA and Backlog info
+  // Determine regular batch year dynamically from state.students
+  let regularBatchYear = "22"; // default fallback
+  if (state.students.length > 0) {
+    const yearCounts = {};
+    state.students.forEach(s => {
+      const match = s.id.match(/^(?:L)?PRC(\d{2})/i);
+      const yr = match ? match[1] : (s.year || "22");
+      yearCounts[yr] = (yearCounts[yr] || 0) + 1;
+    });
+    
+    let dominantYear = null;
+    let maxCount = 0;
+    Object.keys(yearCounts).forEach(yr => {
+      if (yearCounts[yr] > maxCount) {
+        maxCount = yearCounts[yr];
+        dominantYear = yr;
+      }
+    });
+    if (dominantYear) {
+      regularBatchYear = dominantYear;
+    }
+  }
+  state.regularBatchYear = regularBatchYear;
+
+  // 1. Calculate individual SGPA and Backlog info, assign isRegular & isSupply
   state.students.forEach(student => {
+    const match = student.id.match(/^(?:L)?PRC(\d{2})/i);
+    const studentBatchYear = match ? match[1] : (student.year || "22");
+    
+    student.isRegular = (studentBatchYear === regularBatchYear);
+    student.isSupply = (studentBatchYear < regularBatchYear);
+
     let totalCredits = 0;
     let earnedGradePoints = 0;
     let backlogs = 0;
@@ -685,8 +715,10 @@ function processParsedData() {
     });
   });
 
-  // 2. Generate Department-wise stats
+  // 2. Generate Department-wise stats (ONLY for regular students to prevent contamination)
   state.students.forEach(student => {
+    if (!student.isRegular) return;
+
     const branch = student.branch;
     if (!state.departments[branch]) {
       state.departments[branch] = {
@@ -733,10 +765,11 @@ function processParsedData() {
 // ----------------------------------------------------
 
 function updateKPIs() {
-  const totalStudents = state.students.length;
+  const regularStudents = state.students.filter(s => s.isRegular);
+  const totalStudents = regularStudents.length;
   if (totalStudents === 0) return;
 
-  const passedCount = state.students.filter(s => s.status === 'PASS').length;
+  const passedCount = regularStudents.filter(s => s.status === 'PASS').length;
   const failedCount = totalStudents - passedCount;
   const passRate = (passedCount / totalStudents) * 100;
 
@@ -1080,6 +1113,59 @@ function renderDepartmentsTable() {
     `;
     tbody.appendChild(tr);
   });
+
+  // Calculate and populate Supplementary Clearances (Supply Pass Summary)
+  const supplyStats = {};
+  state.students.forEach(student => {
+    if (!student.isSupply) return;
+    const branch = student.branch;
+    if (!supplyStats[branch]) {
+      supplyStats[branch] = { appeared: 0, cleared: 0 };
+    }
+    supplyStats[branch].appeared++;
+    if (student.status === 'PASS') {
+      supplyStats[branch].cleared++;
+    }
+  });
+
+  const metricsContainer = document.getElementById('supply-clearance-metrics');
+  if (metricsContainer) {
+    metricsContainer.innerHTML = '';
+    
+    const branches = Object.keys(supplyStats).sort();
+    
+    if (branches.length === 0) {
+      metricsContainer.innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; grid-column: 1 / -1; text-align: center; padding: 1rem 0;">No supplementary/supply candidates found in this result dataset.</div>';
+    } else {
+      branches.forEach(branch => {
+        const stat = supplyStats[branch];
+        const name = branchNames[branch] || branch;
+        
+        const card = document.createElement('div');
+        card.className = 'glass-panel';
+        card.style.padding = '1.25rem';
+        card.style.borderTop = '3px solid var(--accent-olive)';
+        card.style.background = 'var(--panel-bg)';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.gap = '0.35rem';
+        card.style.borderRadius = '6px';
+        card.style.boxShadow = '0 2px 6px rgba(0,0,0,0.01)';
+        card.innerHTML = `
+          <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em;">
+            ${branch} - ${name}
+          </div>
+          <div style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--text-primary);">
+            ${stat.cleared} <span style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary);">/ ${stat.appeared} Cleared</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--success); font-weight: 600;">
+            Pass Rate: ${((stat.cleared / stat.appeared) * 100).toFixed(1)}%
+          </div>
+        `;
+        metricsContainer.appendChild(card);
+      });
+    }
+  }
 }
 
 // --- TAB RENDER: SUBJECTS ANALYSIS TABLE ---

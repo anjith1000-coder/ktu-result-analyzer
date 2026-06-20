@@ -516,6 +516,76 @@ if (!univSummaryCardContent.includes('5.95') || !univSummaryCardContent.includes
 global.document.querySelectorAll = originalQuerySelectorAllUniv;
 global.document.getElementById = originalGetElementByIdUniv;
 
-console.log('[PASS] Universal SGPA Maxer simulations and dynamic calculations verified successfully.');
+// Test 8: Regular Cohort vs Supplementary Separation check
+console.log('\n--- TEST 8: REGULAR COHORT vs SUPPLEMENTARY SEPARATION ---');
+
+// Mock data with mixed batch years
+state.students = [
+  { id: 'PRC22CS001', name: 'Regular CS 1', branch: 'CS', grades: { 'MAT201': 'B' }, backlogs: 0, status: 'PASS', sgpa: 7.5 },
+  { id: 'PRC22CS002', name: 'Regular CS 2', branch: 'CS', grades: { 'MAT201': 'C' }, backlogs: 0, status: 'PASS', sgpa: 6.5 },
+  { id: 'PRC20CS001', name: 'Supply CS 1', branch: 'CS', grades: { 'MAT201': 'F' }, backlogs: 1, status: 'SUPPLY', sgpa: 0.0 }
+];
+
+// Mock credits
+globalCreditsMap['MAT201'] = 4;
+
+// Run parsing processor
+processParsedData();
+
+console.log(`Detected Regular Batch Year: ${state.regularBatchYear}`);
+console.log(`Regular Student 1 isRegular: ${state.students.find(s => s.id === 'PRC22CS001').isRegular}`);
+console.log(`Supply Student isRegular: ${state.students.find(s => s.id === 'PRC20CS001').isRegular}`);
+console.log(`Department Appeared (Regular only): ${state.departments['CS'].appeared}`);
+
+if (state.regularBatchYear !== '22') {
+  console.error(`[FAIL] Dynamic regular batch year detected as ${state.regularBatchYear}, expected '22'.`);
+  process.exit(1);
+}
+
+if (!state.students.find(s => s.id === 'PRC22CS001').isRegular || state.students.find(s => s.id === 'PRC20CS001').isRegular) {
+  console.error('[FAIL] Student cohort flags were not assigned correctly.');
+  process.exit(1);
+}
+
+if (state.departments['CS'].appeared !== 2) {
+  console.error(`[FAIL] Department stats contaminated by supply students. Appeared count is ${state.departments['CS'].appeared}, expected 2.`);
+  process.exit(1);
+}
+
+// Check supplementary clearances rendering hook
+let clearanceMetricsContent = '';
+const originalGetElementByIdDept = global.document.getElementById;
+global.document.getElementById = (id) => {
+  if (id === 'supply-clearance-metrics') {
+    return {
+      set innerHTML(val) {
+        clearanceMetricsContent = val;
+      },
+      appendChild: (child) => {
+        clearanceMetricsContent += child.innerHTML;
+      }
+    };
+  }
+  if (id === 'table-body-dept') {
+    return {
+      appendChild: () => {}
+    };
+  }
+  return originalGetElementByIdDept(id);
+};
+
+renderDepartmentsTable();
+console.log(`Supplementary Clearances Content:`, clearanceMetricsContent);
+
+if (!clearanceMetricsContent.includes('Supply CS 1') && !clearanceMetricsContent.includes('/ 1 Cleared') && !clearanceMetricsContent.includes('CS -')) {
+  // Wait, the department select name mapping branchNames['CS'] is 'Computer Science & Engineering'
+  if (!clearanceMetricsContent.includes('Computer Science & Engineering')) {
+    console.error('[FAIL] Supplementary Clearances metrics panel not populated correctly.');
+    process.exit(1);
+  }
+}
+
+global.document.getElementById = originalGetElementByIdDept;
+console.log('[PASS] Regular cohort and supplementary student separation verified successfully.');
 
 console.log('\nAll tests completed successfully!');
