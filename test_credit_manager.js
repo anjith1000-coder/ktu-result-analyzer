@@ -280,4 +280,62 @@ if (csDeptRendered && !meDeptRendered) {
 global.document.querySelectorAll = originalQuerySelectorAll;
 global.document.getElementById = originalGetElementById;
 
+// Test 5: 416-series project/viva extraction check
+console.log('\n--- TEST 5: 416-SERIES PROJECT/VIVA EXTRACTION ---');
+
+const originalRecalculateAndRefresh = recalculateAndRefresh;
+global.recalculateAndRefresh = recalculateAndRefresh = () => {};
+
+const originalGetElementByIdTest5 = global.document.getElementById;
+global.document.getElementById = (id) => {
+  return {
+    addEventListener: () => {},
+    classList: { remove: () => {}, add: () => {} },
+    appendChild: () => {},
+    value: '2019',
+    innerHTML: ''
+  };
+};
+
+// 1. Check cleanAndExtractSubjects directly
+const testCase1 = cleanAndExtractSubjects('MET415', 'COMPREHENSIVE COURSE VIVA MED416 PROJECT PHASE II R');
+console.log('cleanAndExtractSubjects clean name:', testCase1.cleanedName);
+console.log('cleanAndExtractSubjects extracted code:', testCase1.extractedVivaCode);
+
+if (testCase1.extractedVivaCode !== 'MED416') {
+  console.error('[FAIL] cleanAndExtractSubjects did not extract MED416.');
+  process.exit(1);
+}
+
+// 2. Check parseKTUResultText integrates extraction correctly
+state.subjects = {};
+const testText = "MET415  COMPREHENSIVE COURSE VIVA MED416 PROJECT PHASE II R\nstudent results follow:\nPRC22ME019(S) PRC22ME019 MET415(O) MED416(A+)";
+parseKTUResultText(testText);
+
+console.log('state.subjects after parsing:', state.subjects);
+if (state.subjects['MET415'] !== 'COMPREHENSIVE COURSE VIVA') {
+  console.error(`[FAIL] Parent subject MET415 name was not cleaned correctly: "${state.subjects['MET415']}"`);
+  process.exit(1);
+}
+if (state.subjects['MED416'] !== 'PROJECT PHASE II') {
+  console.error(`[FAIL] Standalone subject MED416 was not created correctly: "${state.subjects['MED416']}"`);
+  process.exit(1);
+}
+
+// 3. Check credit weights
+const med416Credits = getInitialDefaultCredits('MED416', '2019');
+const csd416Credits = getInitialDefaultCredits('CSD416', '2019');
+console.log(`MED416 Credits: ${med416Credits}`);
+console.log(`CSD416 Credits: ${csd416Credits}`);
+
+if (med416Credits !== 4 || csd416Credits !== 4) {
+  console.error('[FAIL] Credits for 416-series project subjects were not mapped to 4.');
+  process.exit(1);
+}
+
+global.document.getElementById = originalGetElementByIdTest5;
+global.recalculateAndRefresh = recalculateAndRefresh = originalRecalculateAndRefresh;
+
+console.log('[PASS] 416-series extraction, separate allocation, and credit weights verified successfully.');
+
 console.log('\nAll tests completed successfully!');

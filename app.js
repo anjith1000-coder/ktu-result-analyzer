@@ -29,6 +29,11 @@ function getInitialDefaultCredits(courseCode, scheme) {
     if (code.startsWith('HUN')) return 2;
     if (code.startsWith('MCN')) return 0;
     
+    // Assign 4 credits for 416-series project courses
+    if (code.endsWith('416') || ['MED416', 'CED416', 'EED416', 'ECD416', 'CSD416', 'CAD416', 'CGD416'].includes(code)) {
+      return 4;
+    }
+    
     if (code.length >= 3) {
       const third = code[2];
       if (third === 'L' || third === 'P') return 1;
@@ -387,6 +392,31 @@ function resetBadge(type) {
   status.classList.remove('active');
 }
 
+// Target regex to catch any of the specific 416 codes mentioned
+const vivaProjectRegex = /\b(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)\b/i;
+
+function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
+    let cleanedName = rawSubjectName;
+    let extractedVivaCode = null;
+
+    // Check if a 416 code is trapped inside the name string
+    const match = cleanedName.match(vivaProjectRegex);
+    if (match) {
+        extractedVivaCode = match[1].toUpperCase();
+        
+        // Scrub the code and common junk phrases from the parent subject's name
+        cleanedName = cleanedName
+            .replace(vivaProjectRegex, '')
+            .replace(/COMPREHENSIVE\s+VIVA\s+VOCE/gi, '')
+            .replace(/COMPREHENSIVE\s+COURSE\s+VIVA/gi, '')
+            .replace(/PROJECT\s+PHASE\s+II\s+R/gi, '')
+            .replace(/\s+/g, ' ') // Collapse extra spaces
+            .trim();
+    }
+
+    return { cleanedName, extractedVivaCode };
+}
+
 // ----------------------------------------------------
 // KTU RESULT SHEET TEXT PARSER
 // ----------------------------------------------------
@@ -404,7 +434,13 @@ function parseKTUResultText(text) {
     const name = subMatch[2].trim();
     // Exclude noise (like register number patterns or headers matching this shape)
     if (!code.match(/^[A-Z]{5,}/) && !name.match(/^(GENERATED|APJ ABDUL|REG NO|COURSE CODE)/i)) {
-      state.subjects[code] = name;
+      const { cleanedName, extractedVivaCode } = cleanAndExtractSubjects(code, name);
+      if (extractedVivaCode) {
+        state.subjects[code] = cleanedName || (name.toUpperCase().includes("COURSE") ? "COMPREHENSIVE COURSE VIVA" : "COMPREHENSIVE VIVA VOCE");
+        state.subjects[extractedVivaCode] = "PROJECT PHASE II";
+      } else {
+        state.subjects[code] = name;
+      }
     }
   }
 
