@@ -241,7 +241,7 @@
               </select>
             </div>
           </div>
-          <div class="table-wrapper">
+          <div class="table-wrapper scrollable-table-wrapper">
             <table>
               <thead>
                 <tr>
@@ -253,6 +253,7 @@
                   <th style="text-align: center;" data-sort="backlogs">Supply Count</th>
                   <th style="text-align: center;" data-sort="sgpa">SGPA</th>
                   <th style="text-align: center;" data-sort="status">Status</th>
+                  <th style="text-align: center;">SGPA Maxer</th>
                   <th style="width: 220px; text-align: center;">Actions</th>
                 </tr>
               </thead>
@@ -401,6 +402,47 @@
             <!-- Dynamically populated -->
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SGPA MAXER MODAL -->
+  <div class="modal-backdrop" id="sgpa-maxer-modal">
+    <div class="glass-panel modal-content" style="max-width: 700px;">
+      <button class="modal-close" id="btn-sgpa-maxer-close">&times;</button>
+      
+      <h2 id="sgpa-maxer-title" style="font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">📊 SGPA Maxer (Predictor)</h2>
+      
+      <!-- Student Summary metrics -->
+      <div class="detail-grid" id="sgpa-maxer-student-info">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div class="sgpa-disclaimer-banner">
+        <span>⚠️</span>
+        <p><strong>Note:</strong> Grade points mapped: S:10, A+:9, A:8.5, B+:8, B:7, C+:6, C:5, D:4, P:4, F/FE/I:0. Simulations do not alter baseline records.</p>
+      </div>
+      
+      <h3 style="font-family: var(--font-display); font-size: 1.1rem; margin: 1.5rem 0 0.5rem 0;">Revaluation / Supplementary Prediction</h3>
+      <div class="table-wrapper scrollable-table-wrapper" style="max-height: 300px; overflow-y: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th style="text-align: center; width: 80px;">Credits</th>
+              <th style="text-align: center; width: 100px;">Grade</th>
+              <th style="text-align: center; width: 155px;">Simulated Grade</th>
+            </tr>
+          </thead>
+          <tbody id="sgpa-maxer-table-body">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Live summary card -->
+      <div class="maxer-summary-card" id="sgpa-maxer-summary">
+        <!-- Dynamically populated -->
       </div>
     </div>
   </div>

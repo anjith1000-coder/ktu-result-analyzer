@@ -1031,5 +1031,68 @@ table th[data-sort]:hover {
   margin-bottom: 0;
 }
 
+/* Scrollable table container class */
+.scrollable-table-wrapper {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+/* SGPA Maxer Live Summary Card styling */
+.maxer-summary-card {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: #FAF8F5;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+.maxer-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.maxer-summary-item span:first-child {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.maxer-summary-item span:last-child {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.maxer-delta-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--success-bg);
+  color: var(--success);
+  border: 1px solid var(--success-border);
+  border-radius: 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 0.25rem;
+}
+
+/* Modal styling tweak to make it align with other modals */
+#sgpa-maxer-modal .modal-content {
+  max-width: 700px;
+}
+
 
 

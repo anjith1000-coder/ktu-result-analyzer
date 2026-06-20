@@ -366,6 +366,79 @@ if (met404Credits !== 1 || cst404Credits !== 1) {
 global.document.getElementById = originalGetElementByIdTest5;
 global.recalculateAndRefresh = recalculateAndRefresh = originalRecalculateAndRefresh;
 
-console.log('[PASS] 416-series extraction, separate allocation, bleeding prevention, and 404 credit weights verified successfully.');
+// Test 6: SGPA Maxer calculation checks
+console.log('\n--- TEST 6: SGPA MAXER CALCULATION ENGINE ---');
+
+const studentForMaxer = {
+  id: 'PRC22CS001',
+  name: 'Maxer Test Student',
+  grades: {
+    'MAT201': 'F',
+    'CST201': 'B',
+    'EST200': 'A+'
+  },
+  sgpa: 4.80
+};
+
+// Set credits in global map
+globalCreditsMap['MAT201'] = 4;
+globalCreditsMap['CST201'] = 3;
+globalCreditsMap['EST200'] = 3;
+
+// Mock dropdown elements
+const mockDropdowns = [
+  {
+    dataset: { subject: 'MAT201', credits: '4' },
+    value: 'A' // upgraded from F (8.5 points)
+  },
+  {
+    dataset: { subject: 'CST201', credits: '3' },
+    value: 'B+' // upgraded from B (8.0 points)
+  },
+  {
+    dataset: { subject: 'EST200', credits: '3' },
+    value: 'S' // upgraded from A+ (10.0 points)
+  }
+];
+
+// Mock document.querySelectorAll to return these mock selects
+const originalQuerySelectorAllMaxer = global.document.querySelectorAll;
+global.document.querySelectorAll = (selector) => {
+  if (selector === '.maxer-grade-select') {
+    return mockDropdowns;
+  }
+  return [];
+};
+
+// Capture what gets written to summary card
+let summaryCardContent = '';
+const originalGetElementByIdMaxer = global.document.getElementById;
+global.document.getElementById = (id) => {
+  if (id === 'sgpa-maxer-summary') {
+    return {
+      set innerHTML(val) {
+        summaryCardContent = val;
+      }
+    };
+  }
+  return originalGetElementByIdMaxer(id);
+};
+
+// Run calculation
+calculateMaxedSgpa(studentForMaxer);
+
+console.log('SGPA Maxer Summary Output HTML:\n', summaryCardContent);
+
+// Verify calculations in output text
+if (!summaryCardContent.includes('4.80') || !summaryCardContent.includes('8.80') || !summaryCardContent.includes('+4.00')) {
+  console.error('[FAIL] SGPA Maxer calculations or HTML output are incorrect.');
+  process.exit(1);
+}
+
+// Restore mocks
+global.document.querySelectorAll = originalQuerySelectorAllMaxer;
+global.document.getElementById = originalGetElementByIdMaxer;
+
+console.log('[PASS] SGPA Maxer revaluation simulations and dynamic calculations verified successfully.');
 
 console.log('\nAll tests completed successfully!');

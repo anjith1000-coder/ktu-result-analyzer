@@ -185,6 +185,18 @@ function setupEventListeners() {
     if (e.target.id === 'details-modal') closeModal();
   });
 
+  // SGPA Maxer Modal Close
+  const btnCloseMaxer = document.getElementById('btn-sgpa-maxer-close');
+  if (btnCloseMaxer) {
+    btnCloseMaxer.addEventListener('click', closeSgpaMaxer);
+  }
+  const maxerModal = document.getElementById('sgpa-maxer-modal');
+  if (maxerModal) {
+    maxerModal.addEventListener('click', (e) => {
+      if (e.target.id === 'sgpa-maxer-modal') closeSgpaMaxer();
+    });
+  }
+
   // Search & Filter listeners
   document.getElementById('search-student').addEventListener('input', renderStudentsTable);
   document.getElementById('filter-student-dept').addEventListener('change', renderStudentsTable);
@@ -1240,6 +1252,11 @@ function renderStudentsTable() {
         </span>
       </td>
       <td style="text-align: center;">
+        <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="openSgpaMaxer('${stud.id}')">
+          📊 Optimize
+        </button>
+      </td>
+      <td style="text-align: center;">
         ${actionsHtml}
       </td>
     `;
@@ -1435,6 +1452,173 @@ window.viewStudentDetails = function(studentId) {
 
 function closeModal() {
   document.getElementById('details-modal').classList.remove('active');
+}
+
+// ----------------------------------------------------
+// SGPA MAXER REVALUATION & SUPPLEMENTARY PREDICTOR
+// ----------------------------------------------------
+
+const maxerGradePoints = {
+  'S': 10.0,
+  'A+': 9.0,
+  'A': 8.5,
+  'B+': 8.0,
+  'B': 7.0,
+  'C+': 6.0,
+  'C': 5.0,
+  'D': 4.0,
+  'P': 4.0,
+  'F': 0.0,
+  'FE': 0.0,
+  'I': 0.0
+};
+
+const maxerGradesList = ['F', 'FE', 'I', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
+
+function openSgpaMaxer(studentId) {
+  const student = state.students.find(s => s.id === studentId);
+  if (!student) return;
+
+  const infoGrid = document.getElementById('sgpa-maxer-student-info');
+  if (infoGrid) {
+    let totalCredits = 0;
+    Object.keys(student.grades).forEach(subCode => {
+      const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+      totalCredits += credits;
+    });
+
+    infoGrid.innerHTML = `
+      <div class="detail-item">
+        <span>Student Name</span>
+        <span>${student.name}</span>
+      </div>
+      <div class="detail-item">
+        <span>Register Number</span>
+        <span>${student.id}</span>
+      </div>
+      <div class="detail-item">
+        <span>Total Semester Credits</span>
+        <span>${totalCredits}</span>
+      </div>
+      <div class="detail-item">
+        <span>Baseline SGPA</span>
+        <span style="color: var(--accent-terracotta);">${student.sgpa.toFixed(2)}</span>
+      </div>
+    `;
+  }
+
+  const tbody = document.getElementById('sgpa-maxer-table-body');
+  if (tbody) {
+    tbody.innerHTML = '';
+    
+    Object.keys(student.grades).forEach(subCode => {
+      const currentGrade = student.grades[subCode];
+      const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+      const subName = state.subjects[subCode] || 'Subject Course';
+      
+      const tr = document.createElement('tr');
+      const currentPts = maxerGradePoints[currentGrade] || 0.0;
+      
+      let allowedGrades = maxerGradesList.filter(g => {
+        if (['F', 'FE', 'I'].includes(currentGrade)) {
+          return true;
+        }
+        return maxerGradePoints[g] >= currentPts;
+      });
+
+      allowedGrades.sort((a, b) => maxerGradePoints[b] - maxerGradePoints[a]);
+
+      let optionsHtml = '';
+      allowedGrades.forEach(g => {
+        const selectedAttr = g === currentGrade ? 'selected' : '';
+        optionsHtml += `<option value="${g}" ${selectedAttr}>${g} (${maxerGradePoints[g].toFixed(1)})</option>`;
+      });
+
+      if (!allowedGrades.includes(currentGrade)) {
+        optionsHtml = `<option value="${currentGrade}" selected>${currentGrade} (${currentPts.toFixed(1)})</option>` + optionsHtml;
+      }
+
+      tr.innerHTML = `
+        <td><span class="subject-badge">${subCode}</span> <strong>${subName}</strong></td>
+        <td style="text-align: center;">${credits}</td>
+        <td style="text-align: center;"><span class="grade-badge ${currentGrade.toLowerCase().replace('+', 'plus')}">${currentGrade}</span></td>
+        <td style="text-align: center;">
+          <select class="select-filter maxer-grade-select" data-subject="${subCode}" data-credits="${credits}" style="width: 100%; padding: 0.35rem 0.5rem; font-size: 0.85rem;">
+            ${optionsHtml}
+          </select>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  const dropdowns = document.querySelectorAll('.maxer-grade-select');
+  dropdowns.forEach(select => {
+    select.addEventListener('change', () => calculateMaxedSgpa(student));
+  });
+
+  calculateMaxedSgpa(student);
+
+  const maxerModal = document.getElementById('sgpa-maxer-modal');
+  if (maxerModal) {
+    maxerModal.classList.add('active');
+  }
+}
+window.openSgpaMaxer = openSgpaMaxer;
+
+function closeSgpaMaxer() {
+  const maxerModal = document.getElementById('sgpa-maxer-modal');
+  if (maxerModal) {
+    maxerModal.classList.remove('active');
+  }
+}
+window.closeSgpaMaxer = closeSgpaMaxer;
+
+function calculateMaxedSgpa(student) {
+  let totalCredits = 0;
+  let baselineWeightedPoints = 0;
+  let simulatedWeightedPoints = 0;
+
+  const dropdowns = document.querySelectorAll('.maxer-grade-select');
+  dropdowns.forEach(select => {
+    const subCode = select.dataset.subject;
+    const credits = parseFloat(select.dataset.credits) || 0;
+    const originalGrade = student.grades[subCode];
+    const simulatedGrade = select.value;
+
+    const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
+    const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
+
+    baselineWeightedPoints += originalPts * credits;
+    simulatedWeightedPoints += simulatedPts * credits;
+    totalCredits += credits;
+  });
+
+  const baselineSgpa = totalCredits > 0 ? (baselineWeightedPoints / totalCredits) : 0.0;
+  const simulatedSgpa = totalCredits > 0 ? (simulatedWeightedPoints / totalCredits) : 0.0;
+  const delta = simulatedSgpa - baselineSgpa;
+
+  const summary = document.getElementById('sgpa-maxer-summary');
+  if (summary) {
+    const deltaBadgeHtml = delta > 0 
+      ? `<span class="maxer-delta-badge">+${delta.toFixed(2)}</span>` 
+      : `<span style="font-size: 1.1rem; font-weight: 700; color: var(--text-muted);">+0.00</span>`;
+
+    summary.innerHTML = `
+      <div class="maxer-summary-item">
+        <span>Current SGPA</span>
+        <span>${baselineSgpa.toFixed(2)}</span>
+      </div>
+      <div class="maxer-summary-item">
+        <span>Maximized SGPA</span>
+        <span style="color: var(--accent-terracotta);">${simulatedSgpa.toFixed(2)}</span>
+      </div>
+      <div class="maxer-summary-item">
+        <span>Potential Increase</span>
+        <span>${deltaBadgeHtml}</span>
+      </div>
+    `;
+  }
 }
 
 // ----------------------------------------------------
