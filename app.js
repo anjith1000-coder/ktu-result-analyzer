@@ -20,6 +20,35 @@ const state = {
 
 const globalCreditsMap = {};
 
+function getActiveStudents() {
+  const mainFilter = document.getElementById('dept-operation-filter');
+  const selectedBranch = mainFilter ? mainFilter.value : 'ALL';
+  if (!selectedBranch || selectedBranch === 'ALL') {
+    return state.students;
+  }
+  // Check if selectedBranch is a valid branch in the loaded students list
+  const hasBranch = state.students.some(s => s.branch === selectedBranch);
+  if (!hasBranch) {
+    return state.students;
+  }
+  return state.students.filter(s => s.branch === selectedBranch);
+}
+
+function getActiveDepartments() {
+  const mainFilter = document.getElementById('dept-operation-filter');
+  const selectedBranch = mainFilter ? mainFilter.value : 'ALL';
+  if (!selectedBranch || selectedBranch === 'ALL') {
+    return state.departments;
+  }
+  // Check if selectedBranch exists in state.departments
+  if (!state.departments[selectedBranch]) {
+    return state.departments;
+  }
+  const filtered = {};
+  filtered[selectedBranch] = state.departments[selectedBranch];
+  return filtered;
+}
+
 function getInitialDefaultCredits(courseCode, scheme) {
   if (!courseCode) return 3;
   const code = courseCode.toUpperCase().trim();
@@ -220,6 +249,13 @@ function setupEventListeners() {
   const backlogFilter = document.getElementById('backlogBranchFilter');
   if (backlogFilter) {
     backlogFilter.addEventListener('change', renderBacklogsView);
+  }
+  const deptOpFilter = document.getElementById('dept-operation-filter');
+  if (deptOpFilter) {
+    deptOpFilter.addEventListener('change', () => {
+      renderActiveTab();
+      updateKPIs();
+    });
   }
 
   // Universal SGPA Maxer Load Student
@@ -494,6 +530,26 @@ function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
 // ----------------------------------------------------
 
 function parseKTUResultText(text) {
+  state.customBranchNames = {};
+  
+  const segments = text.split(/Branch\s*:/i);
+  segments.forEach((segment, idx) => {
+    if (idx === 0) return;
+    
+    const headerMatch = segment.match(/^\s*([A-Z\s&,\(\)-]+?)(?=\s*(?:Semester|Course|Register|College|$|\r?\n))/i);
+    let deptName = headerMatch ? headerMatch[1].trim() : segment.split('\n')[0].trim();
+    deptName = deptName.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
+    
+    const studentRegexSegment = /\b(L?)([A-Z]{3})(\d{2})([A-Z]{2,4})(\d{3})\b/g;
+    let match;
+    while ((match = studentRegexSegment.exec(segment)) !== null) {
+      const branchCode = match[4].toUpperCase();
+      if (deptName && branchCode) {
+        state.customBranchNames[branchCode] = deptName;
+      }
+    }
+  });
+
   // 1. Scan for Course Code -> Name Mappings
   // Example lines from PDF text:
   // "MET416 COMPOSITE MATERIALS"
@@ -765,9 +821,17 @@ function processParsedData() {
 // ----------------------------------------------------
 
 function updateKPIs() {
-  const regularStudents = state.students.filter(s => s.isRegular);
+  const activeStudents = getActiveStudents();
+  const regularStudents = activeStudents.filter(s => s.isRegular);
   const totalStudents = regularStudents.length;
-  if (totalStudents === 0) return;
+  if (totalStudents === 0) {
+    document.getElementById('kpi-appeared').textContent = 0;
+    document.getElementById('kpi-pass-rate').textContent = '0.0%';
+    document.getElementById('kpi-failed').textContent = 0;
+    document.getElementById('kpi-top-branch').textContent = 'N/A';
+    document.getElementById('kpi-top-branch-sub').textContent = '';
+    return;
+  }
 
   const passedCount = regularStudents.filter(s => s.status === 'PASS').length;
   const failedCount = totalStudents - passedCount;
@@ -780,31 +844,43 @@ function updateKPIs() {
   // Find top branch by pass percentage
   let topBranch = "N/A";
   let maxPassPct = -1;
-  Object.keys(state.departments).forEach(branch => {
-    const d = state.departments[branch];
+  const activeDepts = getActiveDepartments();
+  Object.keys(activeDepts).forEach(branch => {
+    const d = activeDepts[branch];
     if (d.passPercentage > maxPassPct) {
       maxPassPct = d.passPercentage;
       topBranch = d.code;
     }
   });
   
-  const bName = branchNames[topBranch] || topBranch;
-  document.getElementById('kpi-top-branch').textContent = topBranch;
-  document.getElementById('kpi-top-branch-sub').textContent = `${bName} (${maxPassPct.toFixed(1)}% Pass)`;
+  if (topBranch !== "N/A") {
+    const bName = branchNames[topBranch] || topBranch;
+    document.getElementById('kpi-top-branch').textContent = topBranch;
+    document.getElementById('kpi-top-branch-sub').textContent = `${bName} (${maxPassPct.toFixed(1)}% Pass)`;
+  } else {
+    document.getElementById('kpi-top-branch').textContent = 'N/A';
+    document.getElementById('kpi-top-branch-sub').textContent = '';
+  }
 }
 
 function populateDeptFilterOptions() {
   const filterSelect = document.getElementById('backlogBranchFilter');
   const studentSelect = document.getElementById('filter-student-dept');
+  const mainFilterSelect = document.getElementById('dept-operation-filter');
+  const mainFilterWrapper = document.getElementById('dept-filter-wrapper');
 
   const prevFilterVal = filterSelect ? filterSelect.value : 'ALL';
   const prevStudentVal = studentSelect ? studentSelect.value : 'ALL';
+  const prevMainVal = mainFilterSelect ? mainFilterSelect.value : 'ALL';
 
   if (filterSelect) {
     filterSelect.innerHTML = '<option value="ALL">Available Departments</option>';
   }
   if (studentSelect) {
     studentSelect.innerHTML = '<option value="ALL">All Departments</option>';
+  }
+  if (mainFilterSelect) {
+    mainFilterSelect.innerHTML = '<option value="ALL">All Departments</option>';
   }
 
   // Extract departments directly from the keys used by the Department-wise analytics
@@ -836,6 +912,12 @@ function populateDeptFilterOptions() {
       option.textContent = displayName;
       studentSelect.appendChild(option);
     }
+    if (mainFilterSelect) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = displayName;
+      mainFilterSelect.appendChild(option);
+    }
   });
 
   // Restore selection if option still exists
@@ -844,6 +926,14 @@ function populateDeptFilterOptions() {
   }
   if (studentSelect && studentSelect.querySelector(`option[value="${prevStudentVal}"]`)) {
     studentSelect.value = prevStudentVal;
+  }
+  if (mainFilterSelect && mainFilterSelect.querySelector(`option[value="${prevMainVal}"]`)) {
+    mainFilterSelect.value = prevMainVal;
+  }
+
+  // Unhide the main filter wrapper
+  if (mainFilterWrapper) {
+    mainFilterWrapper.classList.remove('hidden');
   }
 }
 
@@ -875,9 +965,12 @@ function renderDashboardCharts() {
     }
   });
 
-  const depts = Object.keys(state.departments).sort();
-  const passPercentages = depts.map(d => state.departments[d].passPercentage);
-  const averageSgpas = depts.map(d => state.departments[d].averageSgpa);
+  const activeDepts = getActiveDepartments();
+  const depts = Object.keys(activeDepts).sort();
+  const passPercentages = depts.map(d => activeDepts[d].passPercentage);
+  const averageSgpas = depts.map(d => activeDepts[d].averageSgpa);
+
+  const activeStudents = getActiveStudents();
 
   // 1. Chart: Dept Pass % (Bar Chart)
   const ctxDeptPass = document.getElementById('chart-dept-pass').getContext('2d');
@@ -917,7 +1010,7 @@ function renderDashboardCharts() {
   // Initialize counts
   Object.keys(state.gradePoints).forEach(g => gradeCounts[g] = 0);
   
-  state.students.forEach(student => {
+  activeStudents.forEach(student => {
     Object.values(student.grades).forEach(grade => {
       if (gradeCounts[grade] !== undefined) gradeCounts[grade]++;
     });
@@ -966,7 +1059,7 @@ function renderDashboardCharts() {
 
   // 3. Subject-wise Failure Rate Chart (Bar Chart for difficult subjects)
   const subjectStats = {};
-  state.students.forEach(student => {
+  activeStudents.forEach(student => {
     Object.keys(student.grades).forEach(subCode => {
       if (!subjectStats[subCode]) {
         subjectStats[subCode] = { registered: 0, failed: 0 };
@@ -1022,7 +1115,7 @@ function renderDashboardCharts() {
   const deptBacklogs = {};
   depts.forEach(d => deptBacklogs[d] = { totalBacklogs: 0, count: 0 });
 
-  state.students.forEach(student => {
+  activeStudents.forEach(student => {
     if (deptBacklogs[student.branch]) {
       deptBacklogs[student.branch].totalBacklogs += student.backlogs;
       deptBacklogs[student.branch].count++;
@@ -1067,18 +1160,21 @@ function renderDepartmentsTable() {
   const tbody = document.getElementById('table-body-dept');
   tbody.innerHTML = '';
 
+  const activeDepts = getActiveDepartments();
+  const activeStudents = getActiveStudents();
+
   const col = state.sortState.dept.column;
   const dir = state.sortState.dept.direction === 'asc' ? 1 : -1;
 
   // Compute overall ranks based on passPercentage descending
   const rankMap = {};
-  Object.values(state.departments)
+  Object.values(activeDepts)
     .sort((a, b) => b.passPercentage - a.passPercentage)
     .forEach((dept, idx) => {
       rankMap[dept.code] = idx + 1;
     });
 
-  const sortedDepts = Object.values(state.departments).sort((a, b) => {
+  const sortedDepts = Object.values(activeDepts).sort((a, b) => {
     let valA = a[col];
     let valB = b[col];
     
@@ -1100,11 +1196,13 @@ function renderDepartmentsTable() {
     else if (rank === 2) badgeClass = "rank-2";
     else if (rank === 3) badgeClass = "rank-3";
 
+    const deptName = (state.customBranchNames && state.customBranchNames[dept.code]) || dept.name;
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="text-align: center;"><span class="rank-badge ${badgeClass}">${rank}</span></td>
       <td><strong>${dept.code}</strong></td>
-      <td>${dept.name}</td>
+      <td>${deptName}</td>
       <td style="text-align: center;">${dept.appeared}</td>
       <td style="text-align: center; color: var(--success); font-weight: 600;">${dept.fullPass}</td>
       <td style="text-align: center; color: ${dept.supply > 0 ? 'var(--danger)' : 'var(--text-muted)'};">${dept.supply}</td>
@@ -1116,7 +1214,7 @@ function renderDepartmentsTable() {
 
   // Calculate and populate Supplementary Clearances (Supply Pass Summary)
   const supplyStats = {};
-  state.students.forEach(student => {
+  activeStudents.forEach(student => {
     if (!student.isSupply) return;
     const branch = student.branch;
     if (!supplyStats[branch]) {
@@ -1139,7 +1237,7 @@ function renderDepartmentsTable() {
     } else {
       branches.forEach(branch => {
         const stat = supplyStats[branch];
-        const name = branchNames[branch] || branch;
+        const name = (state.customBranchNames && state.customBranchNames[branch]) || branchNames[branch] || branch;
         
         const card = document.createElement('div');
         card.className = 'glass-panel';
@@ -1183,7 +1281,8 @@ function renderSubjectsTable() {
 
   // Aggregate stats per subject code
   const subjectAgg = {};
-  state.students.forEach(student => {
+  const activeStudents = getActiveStudents();
+  activeStudents.forEach(student => {
     Object.keys(student.grades).forEach(subCode => {
       if (!subjectAgg[subCode]) {
         subjectAgg[subCode] = {
@@ -1289,8 +1388,8 @@ function renderStudentsTable() {
   const deptFilter = document.getElementById('filter-student-dept').value;
   const statusFilter = document.getElementById('filter-student-status').value;
 
-  // Filter students
-  let filtered = state.students.filter(student => {
+  const activeStudents = getActiveStudents();
+  let filtered = activeStudents.filter(student => {
     const matchSearch = student.id.includes(search) || (student.name || '').toUpperCase().includes(search);
     const matchDept = deptFilter === 'ALL' || student.branch === deptFilter;
     const matchStatus = statusFilter === 'ALL' || student.status === statusFilter;
@@ -1368,13 +1467,16 @@ function renderStudentsTable() {
 function renderBacklogsView() {
   const filterVal = document.getElementById('backlogBranchFilter') ? document.getElementById('backlogBranchFilter').value : 'ALL';
 
+  const activeStudents = getActiveStudents();
+  const activeDepts = getActiveDepartments();
+
   // 1. Fill Student Backlog Leaders Table
   const tbodyMax = document.getElementById('table-body-backlogs-max');
   tbodyMax.innerHTML = '';
 
   const filteredStudents = filterVal === 'ALL' 
-    ? state.students 
-    : state.students.filter(s => s.branch === filterVal);
+    ? activeStudents 
+    : activeStudents.filter(s => s.branch === filterVal);
 
   const studentsWithBacklogs = filteredStudents.filter(s => s.backlogs > 0);
   studentsWithBacklogs.sort((a, b) => b.backlogs - a.backlogs);
@@ -1420,7 +1522,7 @@ function renderBacklogsView() {
   tbodySubs.innerHTML = '';
 
   const subjectAgg = {};
-  state.students.forEach(student => {
+  activeStudents.forEach(student => {
     if (filterVal !== 'ALL' && student.branch !== filterVal) return;
     
     Object.keys(student.grades).forEach(subCode => {
@@ -1458,7 +1560,7 @@ function renderBacklogsView() {
   const tbodyDept = document.getElementById('table-body-backlogs-dept');
   tbodyDept.innerHTML = '';
 
-  const depts = Object.keys(state.departments).sort().filter(branch => {
+  const depts = Object.keys(activeDepts).sort().filter(branch => {
     return filterVal === 'ALL' || branch === filterVal;
   });
   
@@ -1467,7 +1569,7 @@ function renderBacklogsView() {
     let studentsWithSupply = 0;
     let count = 0;
     
-    state.students.forEach(student => {
+    activeStudents.forEach(student => {
       if (student.branch === branch) {
         count++;
         totalBacklogs += student.backlogs;
@@ -1478,7 +1580,7 @@ function renderBacklogsView() {
     });
 
     const avgBacklogs = count > 0 ? (totalBacklogs / count) : 0;
-    const name = branchNames[branch] || branch + " Department";
+    const name = (state.customBranchNames && state.customBranchNames[branch]) || branchNames[branch] || branch + " Department";
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1736,47 +1838,51 @@ function exportToExcelDirect() {
   
   setTimeout(() => {
     try {
+      const activeStudents = getActiveStudents();
+      const activeDepts = getActiveDepartments();
+
       // Calculate overall metrics
-      const totalRegistered = state.students.length;
-      const totalPassed = state.students.filter(s => s.status === 'PASS').length;
+      const totalRegistered = activeStudents.length;
+      const totalPassed = activeStudents.filter(s => s.status === 'PASS').length;
       const totalFailed = totalRegistered - totalPassed;
       const overallPassPct = totalRegistered > 0 ? ((totalPassed / totalRegistered) * 100).toFixed(2) : "0.00";
       
-      // Rule A: Calculate total institutional average SGPA as a true weighted average of valid SGPAs (excluding 0.00)
-      const validSgpas = state.students.filter(s => s.sgpa > 0).map(s => s.sgpa);
+      // Calculate total institutional average SGPA as a true weighted average of valid SGPAs (excluding 0.00)
+      const validSgpas = activeStudents.filter(s => s.sgpa > 0).map(s => s.sgpa);
       const totalValidSgpasSum = validSgpas.reduce((sum, val) => sum + val, 0);
       const averageSgpaInstitutional = validSgpas.length > 0 ? (totalValidSgpasSum / validSgpas.length).toFixed(2) : "0.00";
       
       // Academic Standing Tiers (Passed Students Only)
-      const passingStudents = state.students.filter(s => s.status === 'PASS');
+      const passingStudents = activeStudents.filter(s => s.status === 'PASS');
       const distinctionCount = passingStudents.filter(s => s.sgpa >= 8.5).length;
       const firstClassCount = passingStudents.filter(s => s.sgpa >= 7.0 && s.sgpa < 8.5).length;
       const secondClassCount = passingStudents.filter(s => s.sgpa < 7.0).length;
 
       // Calculate departments standings
-      const sortedDepts = Object.values(state.departments).sort((a, b) => b.passPercentage - a.passPercentage);
+      const sortedDepts = Object.values(activeDepts).sort((a, b) => b.passPercentage - a.passPercentage);
       let deptRows = "";
-      sortedDepts.forEach(d => {
+      sortedDepts.forEach((d, idx) => {
+        const deptName = (state.customBranchNames && state.customBranchNames[d.code]) || d.name;
         deptRows += `
-          <tr>
-            <td style="border: 1px solid #CCCCCC; padding: 8px;">${d.name}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right;">${d.appeared}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #608066; font-weight: bold;">${d.fullPass}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559;">${d.supply}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold;">${d.passPercentage.toFixed(2)}%</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #CB997E; font-weight: bold;">${d.averageSgpa.toFixed(2)}</td>
+          <tr class="${idx % 2 === 0 ? 'zebra' : 'white-row'}">
+            <td style="border: 1px solid #BDC3C7; padding: 8px;">${deptName}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right;">${d.appeared}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #608066; font-weight: bold;">${d.fullPass}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #B56559;">${d.supply}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; font-weight: bold;">${d.passPercentage.toFixed(2)}%</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #CB997E; font-weight: bold;">${d.averageSgpa.toFixed(2)}</td>
           </tr>
         `;
       });
       
       // Calculate subject analytics
       const subjectAgg = {};
-      state.students.forEach(student => {
+      activeStudents.forEach(student => {
         Object.keys(student.grades).forEach(subCode => {
           if (!subjectAgg[subCode]) {
             subjectAgg[subCode] = {
               code: subCode,
-              name: state.subjects[subCode] || subCode,
+              name: (state.courseCatalog && state.courseCatalog[subCode]) || state.subjects[subCode] || subCode,
               registered: 0,
               passed: 0,
               failed: 0
@@ -1805,17 +1911,36 @@ function exportToExcelDirect() {
       
       let subjectRows = "";
       topSubjects.forEach((s, idx) => {
-        const deptPrefix = s.code.substring(0, 2).toUpperCase();
-        const deptName = branchNames[deptPrefix] || "General Science/Humanities";
+        // Resolve dominant branch to get dynamic department name
+        const subjectStudents = activeStudents.filter(stud => stud.grades[s.code] !== undefined);
+        const branchCounts = {};
+        subjectStudents.forEach(stud => {
+          branchCounts[stud.branch] = (branchCounts[stud.branch] || 0) + 1;
+        });
+        let dominantBranch = "";
+        let maxBranchCount = 0;
+        Object.keys(branchCounts).forEach(br => {
+          if (branchCounts[br] > maxBranchCount) {
+            maxBranchCount = branchCounts[br];
+            dominantBranch = br;
+          }
+        });
+        const deptName = (state.customBranchNames && state.customBranchNames[dominantBranch])
+                          || branchNames[dominantBranch]
+                          || dominantBranch
+                          || "General Subject";
+
+        const subjectNameMapped = (state.courseCatalog && state.courseCatalog[s.code]) || state.subjects[s.code] || s.code;
+
         subjectRows += `
-          <tr>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px;">${s.code}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px;">${deptName}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold;">${s.passPct.toFixed(2)}%</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right;">${s.registered}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #608066;">${s.passed}</td>
-            <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559;">${s.failed}</td>
+          <tr class="${idx % 2 === 0 ? 'zebra' : 'white-row'}">
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px;">${s.code} - ${subjectNameMapped}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px;">${deptName}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; font-weight: bold;">${s.passPct.toFixed(2)}%</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right;">${s.registered}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #608066;">${s.passed}</td>
+            <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #B56559;">${s.failed}</td>
           </tr>
         `;
       });
@@ -1831,21 +1956,120 @@ function exportToExcelDirect() {
       if (riskSubjects.length === 0) {
         riskRows = `
           <tr>
-            <td colspan="6" style="border: 1px solid #CCCCCC; padding: 8px; text-align: center; font-style: italic;">No critical subject risks identified.</td>
+            <td colspan="6" style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-style: italic;">No critical subject risks identified.</td>
           </tr>
         `;
       } else {
         riskSubjects.forEach((s, idx) => {
-          const deptPrefix = s.code.substring(0, 2).toUpperCase();
-          const deptName = branchNames[deptPrefix] || "General Science/Humanities";
+          const subjectStudents = activeStudents.filter(stud => stud.grades[s.code] !== undefined);
+          const branchCounts = {};
+          subjectStudents.forEach(stud => {
+            branchCounts[stud.branch] = (branchCounts[stud.branch] || 0) + 1;
+          });
+          let dominantBranch = "";
+          let maxBranchCount = 0;
+          Object.keys(branchCounts).forEach(br => {
+            if (branchCounts[br] > maxBranchCount) {
+              maxBranchCount = branchCounts[br];
+              dominantBranch = br;
+            }
+          });
+          const deptName = (state.customBranchNames && state.customBranchNames[dominantBranch])
+                            || branchNames[dominantBranch]
+                            || dominantBranch
+                            || "General Subject";
+
+          const subjectNameMapped = (state.courseCatalog && state.courseCatalog[s.code]) || state.subjects[s.code] || s.code;
+
           riskRows += `
-            <tr>
-              <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
-              <td style="border: 1px solid #CCCCCC; padding: 8px;">${s.code}</td>
-              <td style="border: 1px solid #CCCCCC; padding: 8px;">${s.name}</td>
-              <td style="border: 1px solid #CCCCCC; padding: 8px;">${deptName}</td>
-              <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; color: #B56559; font-weight: bold;">${s.failed}</td>
-              <td style="border: 1px solid #CCCCCC; padding: 8px; text-align: right; font-weight: bold; color: #C62828;">${s.failPct.toFixed(2)}%</td>
+            <tr class="${idx % 2 === 0 ? 'zebra' : 'white-row'}">
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${s.code}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${subjectNameMapped}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${deptName}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #B56559; font-weight: bold;">${s.failed}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; font-weight: bold; color: #C62828;">${s.failPct.toFixed(2)}%</td>
+            </tr>
+          `;
+        });
+      }
+
+      // Generate "Top Performers" Section
+      const regularStudents = activeStudents.filter(s => s.isRegular);
+      // Sort regular students by SGPA descending
+      const sortedRegularStudents = [...regularStudents].sort((a, b) => b.sgpa - a.sgpa);
+      const topStudentsList = sortedRegularStudents.slice(0, 15);
+
+      function getCompletedCredits(student) {
+        let completed = 0;
+        Object.keys(student.grades).forEach(subCode => {
+          const grade = student.grades[subCode];
+          if (!['F', 'FE', 'I'].includes(grade)) {
+            const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+            completed += credit;
+          }
+        });
+        return completed;
+      }
+
+      let topPerformersRows = "";
+      if (topStudentsList.length === 0) {
+        topPerformersRows = `
+          <tr>
+            <td colspan="6" style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-style: italic;">No regular students registered.</td>
+          </tr>
+        `;
+      } else {
+        topStudentsList.forEach((stud, idx) => {
+          const deptName = (state.customBranchNames && state.customBranchNames[stud.branch]) 
+                            || branchNames[stud.branch] 
+                            || stud.branch;
+          const completedCredits = getCompletedCredits(stud);
+          topPerformersRows += `
+            <tr class="${idx % 2 === 0 ? 'zebra' : 'white-row'}">
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-weight: bold;">${idx + 1}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${stud.id}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${deptName}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right;">${completedCredits}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #CB997E; font-weight: bold;">${stud.sgpa.toFixed(2)}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: center;">
+                <span style="color: ${stud.status === 'PASS' ? '#608066' : '#B56559'}; font-weight: bold;">
+                  ${stud.status === 'PASS' ? 'Full Pass' : 'Supply'}
+                </span>
+              </td>
+            </tr>
+          `;
+        });
+      }
+
+      // Generate "Backlog Tracker" Section
+      const backlogStudents = activeStudents.filter(s => s.backlogs > 0 || s.isSupply === true);
+      // Sort backlog students by backlog count descending
+      const sortedBacklogStudents = [...backlogStudents].sort((a, b) => b.backlogs - a.backlogs);
+
+      let backlogTrackerRows = "";
+      if (sortedBacklogStudents.length === 0) {
+        backlogTrackerRows = `
+          <tr>
+            <td colspan="5" style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-style: italic;">No backlog or supplementary students found.</td>
+          </tr>
+        `;
+      } else {
+        sortedBacklogStudents.forEach((stud, idx) => {
+          const deptName = (state.customBranchNames && state.customBranchNames[stud.branch]) 
+                            || branchNames[stud.branch] 
+                            || stud.branch;
+          const failedCodes = Object.keys(stud.grades)
+            .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
+            .join(', ') || 'None';
+          const academicStatus = stud.isSupply ? 'Supplementary Candidate' : 'Regular Supply';
+          backlogTrackerRows += `
+            <tr class="${idx % 2 === 0 ? 'zebra' : 'white-row'}">
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${stud.id}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px;">${deptName}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: right; color: #B56559; font-weight: bold;">${stud.backlogs}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; color: #B56559;">${failedCodes}</td>
+              <td style="border: 1px solid #BDC3C7; padding: 8px; text-align: center; font-weight: 500;">${academicStatus}</td>
             </tr>
           `;
         });
@@ -1872,18 +2096,20 @@ function exportToExcelDirect() {
           <style>
             body { font-family: 'Calibri', sans-serif; }
             table { border-collapse: collapse; margin-bottom: 20px; }
-            td, th { border: 1px solid #CCCCCC; padding: 8px; font-size: 11pt; vertical-align: middle; }
-            .header-banner-1 { background-color: #6A1B9A; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 16pt; height: 35px; border: 1px solid #4A148C; }
-            .header-banner-2 { background-color: #4CAF50; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 13pt; height: 30px; border: 1px solid #388E3C; }
-            .header-banner-3 { background-color: #FFC107; color: #000000; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; border: 1px solid #F57F17; }
-            .section-header-stat { background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
-            .section-header-dept { background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
-            .section-header-risk { background-color: #C62828; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; }
-            .table-header { background-color: #0D47A1; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; }
-            .table-header-risk { background-color: #C62828; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; }
-            .bold-text { font-weight: bold; background-color: #F5F5F5; }
-            .number-cell { text-align: right; }
-            .percent-cell { text-align: right; font-weight: bold; }
+            td, th { border: 1px solid #BDC3C7; padding: 8px; font-size: 11pt; vertical-align: middle; }
+            .header-banner-1 { background-color: #34495E; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 16pt; height: 35px; border: 1px solid #BDC3C7; }
+            .header-banner-2 { background-color: #34495E; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 13pt; height: 30px; border: 1px solid #BDC3C7; }
+            .header-banner-3 { background-color: #34495E; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; border: 1px solid #BDC3C7; }
+            .section-header-stat { background-color: #34495E; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; border: 1px solid #BDC3C7; }
+            .section-header-dept { background-color: #34495E; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; border: 1px solid #BDC3C7; }
+            .section-header-risk { background-color: #34495E; color: #FFFFFF; font-weight: bold; font-size: 12pt; height: 25px; text-align: left; border: 1px solid #BDC3C7; }
+            .table-header { background-color: #34495E; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; border: 1px solid #BDC3C7; }
+            .table-header-risk { background-color: #34495E; color: #FFFFFF; font-weight: bold; text-align: center; font-size: 11pt; height: 25px; border: 1px solid #BDC3C7; }
+            .bold-text { font-weight: bold; background-color: #F8F9FA; border: 1px solid #BDC3C7; }
+            .number-cell { text-align: right; border: 1px solid #BDC3C7; }
+            .percent-cell { text-align: right; font-weight: bold; border: 1px solid #BDC3C7; }
+            .zebra { background-color: #F8F9FA; }
+            .white-row { background-color: #FFFFFF; }
           </style>
         </head>
         <body>
@@ -1904,56 +2130,56 @@ function exportToExcelDirect() {
             
             <!-- Overall Statistics Header -->
             <tr>
-              <td colspan="4" class="section-header-stat" style="background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt;">OVERALL STATISTICS - REGULAR STUDENTS ONLY</td>
+              <td colspan="4" class="section-header-stat">OVERALL STATISTICS - REGULAR STUDENTS ONLY</td>
               <td colspan="3" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Total Registered</td>
-              <td class="number-cell" style="text-align: right;">${totalRegistered}</td>
+              <td class="bold-text">Total Registered</td>
+              <td class="number-cell">${totalRegistered}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Total Passed</td>
-              <td class="number-cell" style="text-align: right;">${totalPassed}</td>
+              <td class="bold-text">Total Passed</td>
+              <td class="number-cell">${totalPassed}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Total Failed</td>
-              <td class="number-cell" style="text-align: right;">${totalFailed}</td>
+              <td class="bold-text">Total Failed</td>
+              <td class="number-cell">${totalFailed}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Overall Pass %</td>
-              <td class="percent-cell" style="text-align: right; font-weight: bold;">${overallPassPct}%</td>
+              <td class="bold-text">Overall Pass %</td>
+              <td class="percent-cell">${overallPassPct}%</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Average SGPA (Passed)</td>
-              <td class="number-cell" style="text-align: right; font-weight: bold; color: #E65100;">${averageSgpaInstitutional}</td>
+              <td class="bold-text">Average SGPA (Passed)</td>
+              <td class="number-cell" style="font-weight: bold; color: #34495E;">${averageSgpaInstitutional}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
-
+ 
             <!-- Empty Spacer -->
             <tr><td colspan="7" style="border:none; height: 10px;"></td></tr>
-
+ 
             <!-- Academic Standing Tiers -->
             <tr>
-              <td colspan="4" class="section-header-stat" style="background-color: #E65100; color: #FFFFFF; font-weight: bold; font-size: 12pt;">ACADEMIC STANDING TIERS (PASSED STUDENTS ONLY)</td>
+              <td colspan="4" class="section-header-stat">ACADEMIC STANDING TIERS (PASSED STUDENTS ONLY)</td>
               <td colspan="3" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Distinction Tiers (SGPA >= 8.5)</td>
-              <td class="number-cell" style="text-align: right;">${distinctionCount}</td>
+              <td class="bold-text">Distinction Tiers (SGPA >= 8.5)</td>
+              <td class="number-cell">${distinctionCount}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">First Class Tiers (7.0 to 8.49)</td>
-              <td class="number-cell" style="text-align: right;">${firstClassCount}</td>
+              <td class="bold-text">First Class Tiers (7.0 to 8.49)</td>
+              <td class="number-cell">${firstClassCount}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             <tr>
-              <td class="bold-text" style="font-weight: bold; background-color: #F5F5F5;">Second Class Tiers (SGPA < 7.0)</td>
-              <td class="number-cell" style="text-align: right;">${secondClassCount}</td>
+              <td class="bold-text">Second Class Tiers (SGPA < 7.0)</td>
+              <td class="number-cell">${secondClassCount}</td>
               <td colspan="5" style="border:none;"></td>
             </tr>
             
@@ -1962,10 +2188,10 @@ function exportToExcelDirect() {
             
             <!-- Department Table Header -->
             <tr>
-              <td colspan="6" class="section-header-dept" style="background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt;">DEPARTMENT-WISE PERFORMANCE ANALYSIS</td>
+              <td colspan="6" class="section-header-dept">DEPARTMENT-WISE PERFORMANCE ANALYSIS</td>
               <td style="border:none;"></td>
             </tr>
-            <tr class="table-header" style="background-color: #0D47A1; color: #FFFFFF; font-weight: bold;">
+            <tr class="table-header">
               <td>Department Name</td>
               <td>Total Regular Students</td>
               <td>Total Pass</td>
@@ -1981,11 +2207,11 @@ function exportToExcelDirect() {
             
             <!-- Top 5 Subjects Header -->
             <tr>
-              <td colspan="7" class="section-header-dept" style="background-color: #F57C00; color: #FFFFFF; font-weight: bold; font-size: 12pt;">TOP 5 PERFORMING SUBJECTS</td>
+              <td colspan="7" class="section-header-dept">TOP 5 PERFORMING SUBJECTS</td>
             </tr>
-            <tr class="table-header" style="background-color: #0D47A1; color: #FFFFFF; font-weight: bold;">
+            <tr class="table-header">
               <td>Rank</td>
-              <td>Subject Code</td>
+              <td>Subject Code / Name</td>
               <td>Department</td>
               <td>Pass %</td>
               <td>Total Students</td>
@@ -1993,16 +2219,16 @@ function exportToExcelDirect() {
               <td>Fail</td>
             </tr>
             ${subjectRows}
-
+ 
             <!-- Empty Spacer -->
             <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
-
+ 
             <!-- Subject Risk Matrix Header -->
             <tr>
-              <td colspan="6" class="section-header-risk" style="background-color: #C62828; color: #FFFFFF; font-weight: bold; font-size: 12pt;">CRITICAL SUBJECT RISK DIRECTORY (HIGHEST FAILURE RATES)</td>
+              <td colspan="6" class="section-header-risk">CRITICAL SUBJECT RISK DIRECTORY (HIGHEST FAILURE RATES)</td>
               <td style="border:none;"></td>
             </tr>
-            <tr class="table-header-risk" style="background-color: #C62828; color: #FFFFFF; font-weight: bold;">
+            <tr class="table-header-risk">
               <td>Rank</td>
               <td>Subject Code</td>
               <td>Subject Name</td>
@@ -2012,6 +2238,43 @@ function exportToExcelDirect() {
               <td style="border:none;"></td>
             </tr>
             ${riskRows}
+
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
+
+            <!-- Top Performers Header -->
+            <tr>
+              <td colspan="6" class="section-header-dept">TOP PERFORMERS DIRECTORY (REGULAR COHORT ONLY)</td>
+              <td style="border:none;"></td>
+            </tr>
+            <tr class="table-header">
+              <td>Rank</td>
+              <td>Roll Number</td>
+              <td>Department</td>
+              <td>Completed Credits</td>
+              <td>Estimated SGPA</td>
+              <td>Status</td>
+              <td style="border:none;"></td>
+            </tr>
+            ${topPerformersRows}
+
+            <!-- Empty Spacer -->
+            <tr><td colspan="7" style="border:none; height: 15px;"></td></tr>
+
+            <!-- Backlog Tracker Header -->
+            <tr>
+              <td colspan="5" class="section-header-risk">ACTIVE BACKLOG & SUPPLEMENTARY TRACKER</td>
+              <td colspan="2" style="border:none;"></td>
+            </tr>
+            <tr class="table-header-risk">
+              <td>Roll Number</td>
+              <td>Department</td>
+              <td>Supply Count</td>
+              <td>Failed Course Codes</td>
+              <td>Current Academic Status</td>
+              <td colspan="2" style="border:none;"></td>
+            </tr>
+            ${backlogTrackerRows}
           </table>
         </body>
         </html>
@@ -2303,8 +2566,8 @@ function populateUnivMaxerStudentList() {
 
   if (typeof state === 'undefined' || !state.students) return;
 
-  // Sort students alphabetically by roll number (id)
-  const sortedStudents = [...state.students].sort((a, b) => a.id.localeCompare(b.id));
+  const activeStudents = getActiveStudents();
+  const sortedStudents = [...activeStudents].sort((a, b) => a.id.localeCompare(b.id));
 
   sortedStudents.forEach(student => {
     const displayName = student.name ? `${student.id} - ${student.name}` : student.id;

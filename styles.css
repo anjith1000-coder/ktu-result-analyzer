@@ -800,15 +800,20 @@ tr:hover td {
     display: block !important;
   }
   
+  /* Force all tab content containers to hide unless explicitly active */
   .tab-content {
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    page-break-after: always;
+      display: none !important;
+      position: relative !important;
+      visibility: hidden !important;
   }
-  
-  .tab-content.hidden {
-    display: block !important;
+  .tab-content.active, .tab-content:not(.hidden) {
+      display: block !important;
+      visibility: visible !important;
+  }
+  /* Prevent elements from breaking awkwardly across pages */
+  table, tr, .card, .metric-card {
+      page-break-inside: avoid !important;
+      position: static !important;
   }
 
   body {
