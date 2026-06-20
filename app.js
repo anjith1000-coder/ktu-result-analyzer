@@ -1284,7 +1284,7 @@ function renderBacklogsView() {
     }
   }
 
-  const topBacklogStudents = studentsWithBacklogs.slice(0, 15);
+  const topBacklogStudents = studentsWithBacklogs;
   if (topBacklogStudents.length === 0) {
     tbodyMax.innerHTML = `<tr><td colspan="${hasNames ? 6 : 5}" style="text-align:center; color:var(--text-muted);">No backlogs recorded! Outstanding campus performance.</td></tr>`;
   } else {

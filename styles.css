@@ -1033,11 +1033,18 @@ table th[data-sort]:hover {
 
 /* Scrollable table container class */
 .scrollable-table-wrapper {
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   margin-bottom: 1.5rem;
+}
+
+.scrollable-table-wrapper th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #EBE7DD;
 }
 
 /* SGPA Maxer Live Summary Card styling */
