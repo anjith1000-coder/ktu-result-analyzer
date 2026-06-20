@@ -399,6 +399,12 @@ function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
     let cleanedName = rawSubjectName.trim();
     let extractedVivaCode = null;
 
+    // Truncate at the first newline if any
+    const newlineIndex = cleanedName.indexOf('\n');
+    if (newlineIndex !== -1) {
+        cleanedName = cleanedName.substring(0, newlineIndex).trim();
+    }
+
     // 1. Check for standalone 416 project entries
     const vivaMatch = cleanedName.match(/\b(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)\b/i);
     if (vivaMatch) {
@@ -428,6 +434,8 @@ function cleanAndExtractSubjects(rawSubjectCode, rawSubjectName) {
             cleanedName = "COMPREHENSIVE VIVA VOCE";
         } else if (rawSubjectCode.endsWith('415')) {
             cleanedName = "COMPREHENSIVE COURSE VIVA";
+        } else if (/^(MED416|CED416|EED416|ECD416|CSD416|CAD416|CGD416)$/i.test(rawSubjectCode)) {
+            cleanedName = "PROJECT PHASE II";
         } else {
             cleanedName = rawSubjectCode;
         }
@@ -446,19 +454,19 @@ function parseKTUResultText(text) {
   // "MET416 COMPOSITE MATERIALS"
   // "MET468 ADDITIVE MANUFACTURING"
   state.subjects = {};
-  const courseMappingRegex = /\b([A-Z]{3,4}\d{3,4}[A-Z]?)\s{2,}([A-Z][A-Z0-9\s&()\-',.+/]{3,60})/g;
+  const courseMappingRegex = /\b([A-Z]{3,4}\d{3})\b([\s\S]+?)(?=\b[A-Z]{3,4}\d{3}\b|$)/g;
   let subMatch;
   while ((subMatch = courseMappingRegex.exec(text)) !== null) {
     const code = subMatch[1].toUpperCase();
     const name = subMatch[2].trim();
     // Exclude noise (like register number patterns or headers matching this shape)
-    if (!code.match(/^[A-Z]{5,}/) && !name.match(/^(GENERATED|APJ ABDUL|REG NO|COURSE CODE)/i)) {
+    if (!code.match(/^[A-Z]{5,}/) && !name.match(/^(GENERATED|APJ ABDUL|REG NO|COURSE CODE)/i) && !name.startsWith('(')) {
       const { cleanedName, extractedVivaCode } = cleanAndExtractSubjects(code, name);
       if (extractedVivaCode) {
         state.subjects[code] = cleanedName || (name.toUpperCase().includes("COURSE") ? "COMPREHENSIVE COURSE VIVA" : "COMPREHENSIVE VIVA VOCE");
         state.subjects[extractedVivaCode] = "PROJECT PHASE II";
       } else {
-        state.subjects[code] = name;
+        state.subjects[code] = cleanedName;
       }
     }
   }
