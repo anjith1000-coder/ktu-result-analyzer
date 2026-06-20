@@ -11,6 +11,7 @@ const state = {
   gradePoints: {},    // Grade -> point value map
   customCredits: {},  // Subject code -> credit override map (legacy, replaced by globalCreditsMap)
   charts: {},         // Active Chart.js instances (to destroy before re-rendering)
+  activeTab: 'dashboard', // Track active tab
   sortState: {
     dept: { column: 'passPercentage', direction: 'desc' },
     subject: { column: 'failed', direction: 'desc' },
@@ -174,6 +175,22 @@ function recalculateEverything() {
   recalculateAndRefresh();
 }
 
+function switchTab(tabId) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  if (btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    const content = document.getElementById(`tab-${tabId}`);
+    if (content) {
+      content.classList.remove('hidden');
+    }
+    state.activeTab = tabId;
+    renderActiveTab();
+  }
+}
+
 // Setup Drag & Drop and interactive listeners
 function setupEventListeners() {
   // Scheme Change
@@ -191,14 +208,8 @@ function setupEventListeners() {
   // Tab Buttons
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      
       const tabId = e.target.getAttribute('data-tab');
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
-      
-      renderActiveTab();
+      switchTab(tabId);
     });
   });
 
@@ -3138,42 +3149,30 @@ function generateProfessorReportDOM() {
 
 // Print Executive Report Flow Manager
 function printExecutiveReport() {
-  const activeTabBtn = document.querySelector('.tab-btn.active');
-  const activeTabId = activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'dashboard';
-
-  // Programmatically click dashboard tab to ensure chart canvases are rendered
-  const dashboardTabBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
-  if (dashboardTabBtn) {
-    dashboardTabBtn.click();
+  // 1. Force navigation switch to the Dashboard to ensure charts are active and populated
+  const currentTab = state.activeTab;
+  if (typeof switchTab === 'function') {
+      switchTab('dashboard');
   }
 
-  // Brief timeout to let layout repaint
+  // 2. Compile the template elements inside the report DOM
+  generateProfessorReportDOM();
+
+  // 3. Apply the layout utility isolation classes to the body
+  document.body.classList.add('print-report-mode');
+
+  // 4. CRITICAL FIX: Introduce a short timeout delay to allow the browser layout engine 
+  // to fully paint the HTML structures and base64 chart visuals before launching print preview
   setTimeout(() => {
-    try {
-      generateProfessorReportDOM();
-      document.body.classList.add('print-report-mode');
-      
-      // Trigger system print dialogue
       window.print();
       
-      // Cleanup and restore tab after print dialogue is closed
+      // 5. Teardown and restore state cleanly AFTER the print dialog closes
       document.body.classList.remove('print-report-mode');
       const reportArea = document.getElementById('printable-report-area');
-      if (reportArea) {
-        reportArea.innerHTML = '';
+      if (reportArea) reportArea.innerHTML = '';
+
+      if (typeof switchTab === 'function' && currentTab) {
+          switchTab(currentTab);
       }
-      if (activeTabBtn) {
-        activeTabBtn.click();
-      }
-    } catch (e) {
-      console.error("Print pipeline failed", e);
-      alert("Failed to compile report metrics. Error: " + e.message);
-      
-      // Cleanup on error
-      document.body.classList.remove('print-report-mode');
-      if (activeTabBtn) {
-        activeTabBtn.click();
-      }
-    }
-  }, 250);
+  }, 250); // 250ms buffer to guarantee 0% blank pages
 }
