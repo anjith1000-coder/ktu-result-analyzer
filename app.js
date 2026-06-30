@@ -803,13 +803,13 @@ function processParsedData() {
       const grade = student.grades[subCode];
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       
-      totalSubjects++;
-      if (['F', 'FE', 'I', 'FAIL'].includes(grade)) {
-        if (subCode !== 'UCSEM129') {
+      if (subCode !== 'UCSEM129') {
+        totalSubjects++;
+        if (['F', 'FE', 'I', 'FAIL'].includes(grade)) {
           backlogs++;
+        } else if (grade !== 'NOT_UPDATED') {
+          passedSubjects++;
         }
-      } else if (grade !== 'NOT_UPDATED') {
-        passedSubjects++;
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
@@ -1526,12 +1526,20 @@ function renderStudentsTable() {
     }
 
     const tr = document.createElement('tr');
+    const student = stud;
+    const visibleSubjects = Object.keys(student.grades).map(code => ({
+      courseCode: code,
+      grade: student.grades[code]
+    })).filter(sub => sub.courseCode !== 'UCSEM129');
+    const totalCount = visibleSubjects.length;
+    const passedCount = visibleSubjects.filter(sub => !['F', 'FE', 'I', 'FAIL'].includes(sub.grade)).length;
+
     tr.innerHTML = `
       <td style="text-align: center;"><span class="rank-badge ${badgeClass}">${stud.classRank}</span></td>
       <td><strong>${stud.id}</strong></td>
       ${hasNames ? `<td>${stud.name}</td>` : ''}
       <td style="text-align: center;"><span class="subject-badge">${stud.branch}</span></td>
-      <td style="text-align: center;">${stud.passedCount} / ${stud.totalCount}</td>
+      <td style="text-align: center;">${passedCount} / ${totalCount}</td>
       <td style="text-align: center; color: ${stud.backlogs > 0 ? 'var(--danger)' : 'var(--text-muted)'}; font-weight: 600;">${stud.backlogs}</td>
       <td style="text-align: center; font-weight: 700; color: var(--accent-terracotta);">${stud.sgpa.toFixed(2)}</td>
       <td style="text-align: center;">

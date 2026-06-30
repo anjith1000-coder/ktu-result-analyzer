@@ -810,6 +810,14 @@ if (studentS2.backlogs !== 0) {
 }
 console.log('[PASS] Backlog counter is locked at 0.');
 
+// Verify that passedCount and totalCount ignore UCSEM129
+console.log('Passed/Total Counts:', studentS2.passedCount, '/', studentS2.totalCount);
+if (studentS2.totalCount !== 6 || studentS2.passedCount !== 6) {
+  console.error(`[FAIL] Expected passed/total counts to ignore UCSEM129 (6/6), got: ${studentS2.passedCount}/${studentS2.totalCount}`);
+  process.exit(1);
+}
+console.log('[PASS] Passed/Total counts successfully ignore UCSEM129.');
+
 // Verify that the details modal table does not render a row for UCSEM129 (completely invisible in UI)
 global.viewStudentDetails(studentS2.id);
 const containsUCSEM129 = modalRows.some(row => row.innerHTML.includes('UCSEM129'));
