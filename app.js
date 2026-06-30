@@ -8,6 +8,7 @@ const state = {
   departments: {},    // Map of branch code -> statistics
   nameMap: {},        // Map of roll number -> student name
   scheme: '2019',     // KTU scheme ('2019' or '2015')
+  semester: '2',      // KTU semester ('1' or '2')
   gradePoints: {},    // Grade -> point value map
   customCredits: {},  // Subject code -> credit override map (legacy, replaced by globalCreditsMap)
   charts: {},         // Active Chart.js instances (to destroy before re-rendering)
@@ -76,8 +77,8 @@ function getInitialDefaultCredits(courseCode, scheme) {
   }
   
   if (scheme === '2024') {
-    // Step 0: Wellness / Health & Activity Courses (HWT or UCH prefix)
-    if (code.includes('HWT') || code.startsWith('UCH')) return 1;
+    // Step 0: Wellness / Health & Activity Courses (HWT or UCH prefix) / UCSEM129
+    if (code.includes('HWT') || code.startsWith('UCH') || code === 'UCSEM129') return 1;
 
     // Step 1: Lab Detection (Highest Priority)
     if (code.length >= 5 && code[4] === 'L') {
@@ -178,6 +179,12 @@ function initSchemeConfig() {
     state.scheme = selectScheme.value;
     state.gradePoints = { ...defaultGrades[state.scheme] };
   }
+  const selectSemester = document.getElementById('select-semester');
+  if (selectSemester) {
+    state.semester = selectSemester.value;
+  } else {
+    state.semester = '2';
+  }
 }
 
 // Recalculate everything and refresh views when configuration updates
@@ -192,6 +199,11 @@ function recalculateAndRefresh() {
 function recalculateEverything() {
   recalculateAndRefresh();
 }
+
+function recalculateSGPA() {
+  recalculateEverything();
+}
+window.recalculateSGPA = recalculateSGPA;
 
 function switchTab(tabId) {
   const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
@@ -218,6 +230,17 @@ function setupEventListeners() {
       recalculateAndRefresh();
     }
   });
+
+  // Semester Change
+  const selectSemester = document.getElementById('select-semester');
+  if (selectSemester) {
+    selectSemester.addEventListener('change', (e) => {
+      initSchemeConfig();
+      if (state.students.length > 0) {
+        recalculateAndRefresh();
+      }
+    });
+  }
 
   // File Dropzones & Browsing
   setupDropzone('dropzone-result', 'file-input-result', handleResultFiles);
@@ -705,6 +728,26 @@ function parseKTUResultText(text) {
 function processParsedData() {
   // Reset aggregates
   state.departments = {};
+  
+  // Inject or clean up UCSEM129 manual course injection
+  const selectSemester = document.getElementById('select-semester');
+  const semesterVal = selectSemester ? selectSemester.value : (state.semester || '2');
+  
+  if (state.scheme === '2024' && semesterVal === '2') {
+    state.subjects["UCSEM129"] = "SKILL ENHANCMENT COURSE DIGITAL 101";
+    globalCreditsMap["UCSEM129"] = 1;
+    state.students.forEach(student => {
+      if (student.grades["UCSEM129"] === undefined) {
+        student.grades["UCSEM129"] = "PASS";
+      }
+    });
+  } else {
+    state.students.forEach(student => {
+      if (student.grades["UCSEM129"] !== undefined) {
+        delete student.grades["UCSEM129"];
+      }
+    });
+  }
   
   // Initialize default credits in globalCreditsMap for any new parsed subjects
   state.students.forEach(student => {
@@ -1674,15 +1717,52 @@ window.viewStudentDetails = function(studentId) {
 
     const gClass = grade.toLowerCase().replace('+', 'plus');
 
+    let gradeBadgeHtml = `<span class="grade-badge ${gClass}">${grade}</span>`;
+    if (subCode === 'UCSEM129') {
+      gradeBadgeHtml = `
+        <select class="ucsem129-grade-select select-filter" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.85rem; font-weight: bold; border-radius: 4px; border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-primary); cursor: pointer;">
+          <option value="PASS" ${grade === 'PASS' ? 'selected' : ''}>PASS</option>
+          <option value="FAIL" ${grade === 'FAIL' ? 'selected' : ''}>FAIL</option>
+        </select>
+      `;
+    }
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="subject-badge">${subCode}</span></td>
       <td><strong>${name}</strong></td>
       <td style="text-align: center;">${credits}</td>
-      <td style="text-align: center;"><span class="grade-badge ${gClass}">${grade}</span></td>
+      <td style="text-align: center;">${gradeBadgeHtml}</td>
       <td style="text-align: center;">${points.toFixed(1)}</td>
     `;
     tbody.appendChild(tr);
+
+    if (subCode === 'UCSEM129') {
+      const select = tr.querySelector('.ucsem129-grade-select');
+      if (select) {
+        select.addEventListener('change', (e) => {
+          const newGrade = e.target.value;
+          student.grades['UCSEM129'] = newGrade;
+          
+          // Recalculate SGPA
+          recalculateSGPA();
+          
+          // Re-render modal to reflect changes (standing, SGPA etc.)
+          viewStudentDetails(student.id);
+          
+          // If SGPA Maxer modal is open, recalculate
+          const maxerModal = document.getElementById('sgpa-maxer-modal');
+          if (maxerModal && maxerModal.classList.contains('active')) {
+            calculateMaxedSgpa(student);
+          }
+          
+          // If Universal SGPA Maxer is active for this student, re-render/recalculate
+          if (state.loadedMaxerStudentId === student.id) {
+            renderUnivMaxerStudentData();
+          }
+        });
+      }
+    }
   });
 
   document.getElementById('details-modal').classList.add('active');

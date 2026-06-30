@@ -696,4 +696,90 @@ if (getCompletedCredits(sObj) === 5) {
   process.exit(1);
 }
 
+// Test 11: UCSEM129 Course Injection & Grade Change
+console.log('\n--- TEST 11: UCSEM129 COURSE INJECTION & GRADE CHANGE ---');
+
+const originalGetElementByIdTest11 = global.document.getElementById;
+let mockSemesterValue = '2';
+global.document.getElementById = (id) => {
+  if (id === 'select-semester') {
+    return {
+      value: mockSemesterValue,
+      addEventListener: () => {}
+    };
+  }
+  if (id === 'select-scheme') {
+    return {
+      value: '2024',
+      addEventListener: () => {}
+    };
+  }
+  return {
+    addEventListener: () => {},
+    classList: { remove: () => {}, add: () => {} },
+    appendChild: () => {},
+    value: '2024',
+    innerHTML: ''
+  };
+};
+
+state.scheme = '2024';
+state.students = [
+  {
+    id: 'PRC24CS001',
+    name: 'Test Student S2',
+    grades: {
+      'CYT100': 'B+' // 8.0 points, 4 credits
+    },
+    branch: 'CS',
+    status: 'PASS',
+    sgpa: 0
+  }
+];
+
+globalCreditsMap['CYT100'] = 4;
+
+// Run processing
+processParsedData();
+
+const studentS2 = state.students[0];
+console.log('Student grades after S2 processing:', studentS2.grades);
+if (studentS2.grades['UCSEM129'] !== 'PASS') {
+  console.error(`[FAIL] UCSEM129 was not injected, or has incorrect grade: ${studentS2.grades['UCSEM129']}`);
+  process.exit(1);
+}
+
+const resolvedUCSEMCredits = globalCreditsMap['UCSEM129'] !== undefined ? globalCreditsMap['UCSEM129'] : getInitialDefaultCredits('UCSEM129', state.scheme);
+if (resolvedUCSEMCredits !== 1) {
+  console.error(`[FAIL] UCSEM129 should have 1 credit, got: ${resolvedUCSEMCredits}`);
+  process.exit(1);
+}
+console.log('[PASS] UCSEM129 was successfully injected with 1 credit.');
+
+// Expected SGPA with PASS: ((8.0 * 4) + (5.5 * 1)) / (4 + 1) = (32.0 + 5.5) / 5 = 37.5 / 5 = 7.50
+const expectedSgpaPass = 7.50;
+console.log(`Calculated SGPA (PASS): ${studentS2.sgpa}`);
+if (Math.abs(studentS2.sgpa - expectedSgpaPass) > 0.001) {
+  console.error(`[FAIL] Expected SGPA with PASS to be ${expectedSgpaPass}, got ${studentS2.sgpa}`);
+  process.exit(1);
+}
+console.log('[PASS] Baseline SGPA with injected UCSEM129 PASS is correct.');
+
+// Change grade of UCSEM129 to FAIL and verify SGPA shifts
+studentS2.grades['UCSEM129'] = 'FAIL';
+processParsedData();
+
+// Expected SGPA with FAIL (neutral, not included in credits/grade points): ((8.0 * 4) + 0) / 4 = 8.00
+const expectedSgpaFail = 8.00;
+console.log(`Calculated SGPA (FAIL): ${studentS2.sgpa}`);
+if (Math.abs(studentS2.sgpa - expectedSgpaFail) > 0.001) {
+  console.error(`[FAIL] Expected SGPA with FAIL to be ${expectedSgpaFail}, got ${studentS2.sgpa}`);
+  process.exit(1);
+}
+console.log('[PASS] SGPA shifts correctly when UCSEM129 is set to FAIL.');
+
+// Restore original getElementById mock
+global.document.getElementById = originalGetElementByIdTest11;
+console.log('[PASS] UCSEM129 injection and grade change test passed!');
+
 console.log('\nAll tests completed successfully!');
