@@ -637,16 +637,16 @@ console.log('[PASS] Multi-letter grades parsed and absent grades mapped to F cor
 global.document.getElementById = originalGetElementByIdTest9;
 global.recalculateAndRefresh = recalculateAndRefresh = originalRecalculateAndRefreshTest9;
 
-// Test 10: SGPA Neutrality of PASS/FAIL grades
-console.log('\n--- TEST 10: SGPA NEUTRALITY OF PASS/FAIL ---');
+// Test 10: SGPA and Credit contribution of PASS grade, and neutrality of FAIL grade
+console.log('\n--- TEST 10: SGPA & CREDIT FOR PASS, NEUTRALITY FOR FAIL ---');
 state.students = [
   {
     id: 'PRC24CS001',
     name: 'Neutrality Student',
     grades: {
       'GAPHT121': 'A',     // 8.5 points, 4 credits
-      'UCHWT127': 'PASS',  // Audit course, should be neutral (ignored in SGPA)
-      'GXEST203': 'FAIL'   // Audit course, should be neutral in SGPA, but count as 1 backlog
+      'UCHWT127': 'PASS',  // 5.5 points, 1 credit (maps to P, included in SGPA)
+      'GXEST203': 'FAIL'   // Neutral in SGPA, but counts as 1 backlog
     },
     branch: 'CS',
     status: 'SUPPLY',
@@ -654,22 +654,31 @@ state.students = [
   }
 ];
 
+// Verify credit resolver resolves UCHWT127 to 1 credit automatically under 2024 scheme
+const resolvedCredits = getInitialDefaultCredits('UCHWT127', '2024');
+if (resolvedCredits !== 1) {
+  console.error(`[FAIL] getInitialDefaultCredits('UCHWT127', '2024') should return 1, got ${resolvedCredits}`);
+  process.exit(1);
+}
+console.log(`[PASS] UCHWT127 credits resolved to ${resolvedCredits} successfully.`);
+
 globalCreditsMap['GAPHT121'] = 4;
-globalCreditsMap['UCHWT127'] = 3;
+globalCreditsMap['UCHWT127'] = 1;
 globalCreditsMap['GXEST203'] = 3;
 
 processParsedData();
 
 const sObj = state.students[0];
-const expectedSgpa10 = 8.5; // (8.5 * 4) / 4 = 8.5 (excluding UCHWT127 and GXEST203 credits entirely)
+// expected SGPA: ((8.5 * 4) + (5.5 * 1)) / (4 + 1) = (34.0 + 5.5) / 5 = 39.5 / 5 = 7.90
+const expectedSgpa10 = 7.90;
 console.log(`Calculated SGPA: ${sObj.sgpa}`);
 console.log(`Calculated Backlogs: ${sObj.backlogs}`);
-console.log(`Calculated Completed Credits (excluding PASS/FAIL/backlogs): ${getCompletedCredits(sObj)}`);
+console.log(`Calculated Completed Credits (including PASS, excluding FAIL/backlogs): ${getCompletedCredits(sObj)}`);
 
 if (Math.abs(sObj.sgpa - expectedSgpa10) < 0.001) {
-  console.log('[PASS] SGPA calculated correctly excluding PASS/FAIL credits.');
+  console.log('[PASS] SGPA calculated correctly factoring in PASS grade points and credits.');
 } else {
-  console.error(`[FAIL] SGPA calculation with PASS/FAIL failed. Got: ${sObj.sgpa}, Expected: ${expectedSgpa10}`);
+  console.error(`[FAIL] SGPA calculation failed. Got: ${sObj.sgpa}, Expected: ${expectedSgpa10}`);
   process.exit(1);
 }
 
@@ -680,10 +689,10 @@ if (sObj.backlogs === 1) {
   process.exit(1);
 }
 
-if (getCompletedCredits(sObj) === 4) {
-  console.log('[PASS] Completed credits calculated correctly excluding PASS/FAIL/backlogs.');
+if (getCompletedCredits(sObj) === 5) {
+  console.log('[PASS] Completed credits calculated correctly including PASS credits.');
 } else {
-  console.error(`[FAIL] Completed credits calculation with PASS/FAIL failed. Got: ${getCompletedCredits(sObj)}`);
+  console.error(`[FAIL] Completed credits calculation failed. Got: ${getCompletedCredits(sObj)}, Expected: 5`);
   process.exit(1);
 }
 

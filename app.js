@@ -76,6 +76,9 @@ function getInitialDefaultCredits(courseCode, scheme) {
   }
   
   if (scheme === '2024') {
+    // Step 0: Wellness / Health & Activity Courses (HWT or UCH prefix)
+    if (code.includes('HWT') || code.startsWith('UCH')) return 1;
+
     // Step 1: Lab Detection (Highest Priority)
     if (code.length >= 5 && code[4] === 'L') {
       const numStr = code.substring(5, 8);
@@ -128,13 +131,16 @@ const branchNames = {
 
 // Default Grade Points Configuration
 const defaultGrades = {
-  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
+  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'PASS': 5, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 },
+  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'PASS': 5.5, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 },
+  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'PASS': 5.5, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 }
 };
 
 function getGradePoints(grade, scheme) {
-  const g = (grade || '').toUpperCase().trim();
+  let g = (grade || '').toUpperCase().trim();
+  if (g === 'PASS') {
+    g = 'P';
+  }
   const s = scheme || state.scheme || '2019';
   const pointsMap = defaultGrades[s] || defaultGrades['2019'];
   return pointsMap[g] !== undefined ? pointsMap[g] : 0.0;
@@ -144,7 +150,7 @@ function getCompletedCredits(student) {
   let completed = 0;
   Object.keys(student.grades).forEach(subCode => {
     const grade = student.grades[subCode];
-    if (!['F', 'FE', 'I', 'FAIL', 'PASS'].includes(grade)) {
+    if (!['F', 'FE', 'I', 'FAIL'].includes(grade)) {
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       completed += credit;
     }
@@ -760,7 +766,7 @@ function processParsedData() {
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
       // Non-standard grades like "PASS" or "FAIL" are treated as neutral (credits not added to totalCredits)
-      if (grade !== 'PASS' && grade !== 'FAIL') {
+      if (grade !== 'FAIL') {
         let points = getGradePoints(grade, state.scheme);
         earnedGradePoints += points * credit;
         totalCredits += credit;
@@ -1700,6 +1706,8 @@ const maxerGradePoints = {
   'C': 6.5,
   'D': 6.0,
   'P': 5.5,
+  'PASS': 5.5,
+  'FAIL': 0.0,
   'F': 0.0,
   'FE': 0.0,
   'I': 0.0
@@ -1817,13 +1825,15 @@ function calculateMaxedSgpa(student) {
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
     const simulatedGrade = select.value;
+    const origGrade = originalGrade === 'PASS' ? 'P' : originalGrade;
+    const simGrade = simulatedGrade === 'PASS' ? 'P' : simulatedGrade;
 
-    if (originalGrade === 'PASS' || originalGrade === 'FAIL' || simulatedGrade === 'PASS' || simulatedGrade === 'FAIL') {
+    if (origGrade === 'FAIL' || simGrade === 'FAIL') {
       return;
     }
 
-    const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
-    const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
+    const originalPts = maxerGradePoints[origGrade] !== undefined ? maxerGradePoints[origGrade] : 0.0;
+    const simulatedPts = maxerGradePoints[simGrade] !== undefined ? maxerGradePoints[simGrade] : 0.0;
 
     baselineWeightedPoints += originalPts * credits;
     simulatedWeightedPoints += simulatedPts * credits;
@@ -2621,13 +2631,15 @@ function calculateUnivMaxedSgpa(student) {
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
     const simulatedGrade = select.value;
+    const origGrade = originalGrade === 'PASS' ? 'P' : originalGrade;
+    const simGrade = simulatedGrade === 'PASS' ? 'P' : simulatedGrade;
 
-    if (originalGrade === 'PASS' || originalGrade === 'FAIL' || simulatedGrade === 'PASS' || simulatedGrade === 'FAIL') {
+    if (origGrade === 'FAIL' || simGrade === 'FAIL') {
       return;
     }
 
-    const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
-    const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
+    const originalPts = maxerGradePoints[origGrade] !== undefined ? maxerGradePoints[origGrade] : 0.0;
+    const simulatedPts = maxerGradePoints[simGrade] !== undefined ? maxerGradePoints[simGrade] : 0.0;
 
     baselineWeightedPoints += originalPts * credits;
     simulatedWeightedPoints += simulatedPts * credits;
