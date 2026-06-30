@@ -669,14 +669,14 @@ globalCreditsMap['GXEST203'] = 3;
 processParsedData();
 
 const sObj = state.students[0];
-// expected SGPA: ((8.5 * 4) + (5.5 * 1)) / (4 + 1) = (34.0 + 5.5) / 5 = 39.5 / 5 = 7.90
-const expectedSgpa10 = 7.90;
+// expected SGPA: ((8.5 * 4) + (5.5 * 1) + 0) / (4 + 1 + 3) = 39.5 / 8 = 4.9375
+const expectedSgpa10 = 4.9375;
 console.log(`Calculated SGPA: ${sObj.sgpa}`);
 console.log(`Calculated Backlogs: ${sObj.backlogs}`);
 console.log(`Calculated Completed Credits (including PASS, excluding FAIL/backlogs): ${getCompletedCredits(sObj)}`);
 
 if (Math.abs(sObj.sgpa - expectedSgpa10) < 0.001) {
-  console.log('[PASS] SGPA calculated correctly factoring in PASS grade points and credits.');
+  console.log('[PASS] SGPA calculated correctly factoring in PASS and FAIL grades.');
 } else {
   console.error(`[FAIL] SGPA calculation failed. Got: ${sObj.sgpa}, Expected: ${expectedSgpa10}`);
   process.exit(1);
@@ -769,14 +769,14 @@ console.log('[PASS] Baseline SGPA with injected UCSEM129 PASS is correct.');
 studentS2.grades['UCSEM129'] = 'FAIL';
 processParsedData();
 
-// Expected SGPA with FAIL (neutral, not included in credits/grade points): ((8.0 * 4) + 0) / 4 = 8.00
-const expectedSgpaFail = 8.00;
+// Expected SGPA with FAIL (credits included in denominator): ((8.0 * 4) + 0) / (4 + 1) = 32 / 5 = 6.40
+const expectedSgpaFail = 6.40;
 console.log(`Calculated SGPA (FAIL): ${studentS2.sgpa}`);
 if (Math.abs(studentS2.sgpa - expectedSgpaFail) > 0.001) {
   console.error(`[FAIL] Expected SGPA with FAIL to be ${expectedSgpaFail}, got ${studentS2.sgpa}`);
   process.exit(1);
 }
-console.log('[PASS] SGPA shifts correctly when UCSEM129 is set to FAIL.');
+console.log('[PASS] SGPA shifts correctly and drops lower than PASS state when UCSEM129 is set to FAIL.');
 
 // Restore original getElementById mock
 global.document.getElementById = originalGetElementByIdTest11;

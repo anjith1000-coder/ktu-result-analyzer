@@ -808,12 +808,9 @@ function processParsedData() {
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      // Non-standard grades like "PASS" or "FAIL" are treated as neutral (credits not added to totalCredits)
-      if (grade !== 'FAIL') {
-        let points = getGradePoints(grade, state.scheme);
-        earnedGradePoints += points * credit;
-        totalCredits += credit;
-      }
+      let points = getGradePoints(grade, state.scheme);
+      earnedGradePoints += points * credit;
+      totalCredits += credit;
     });
     
     student.backlogs = backlogs;
@@ -1905,15 +1902,8 @@ function calculateMaxedSgpa(student) {
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
     const simulatedGrade = select.value;
-    const origGrade = originalGrade === 'PASS' ? 'P' : originalGrade;
-    const simGrade = simulatedGrade === 'PASS' ? 'P' : simulatedGrade;
-
-    if (origGrade === 'FAIL' || simGrade === 'FAIL') {
-      return;
-    }
-
-    const originalPts = maxerGradePoints[origGrade] !== undefined ? maxerGradePoints[origGrade] : 0.0;
-    const simulatedPts = maxerGradePoints[simGrade] !== undefined ? maxerGradePoints[simGrade] : 0.0;
+    const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
+    const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
     baselineWeightedPoints += originalPts * credits;
     simulatedWeightedPoints += simulatedPts * credits;
@@ -2711,15 +2701,8 @@ function calculateUnivMaxedSgpa(student) {
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
     const simulatedGrade = select.value;
-    const origGrade = originalGrade === 'PASS' ? 'P' : originalGrade;
-    const simGrade = simulatedGrade === 'PASS' ? 'P' : simulatedGrade;
-
-    if (origGrade === 'FAIL' || simGrade === 'FAIL') {
-      return;
-    }
-
-    const originalPts = maxerGradePoints[origGrade] !== undefined ? maxerGradePoints[origGrade] : 0.0;
-    const simulatedPts = maxerGradePoints[simGrade] !== undefined ? maxerGradePoints[simGrade] : 0.0;
+    const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
+    const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
     baselineWeightedPoints += originalPts * credits;
     simulatedWeightedPoints += simulatedPts * credits;
