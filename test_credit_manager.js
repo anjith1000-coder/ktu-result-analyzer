@@ -744,7 +744,7 @@ processParsedData();
 
 const studentS2 = state.students[0];
 console.log('Student grades after S2 processing:', studentS2.grades);
-if (studentS2.grades['UCSEM129'] !== 'PASS') {
+if (studentS2.grades['UCSEM129'] !== 'NOT_UPDATED') {
   console.error(`[FAIL] UCSEM129 was not injected, or has incorrect grade: ${studentS2.grades['UCSEM129']}`);
   process.exit(1);
 }
@@ -756,16 +756,37 @@ if (resolvedUCSEMCredits !== 1) {
 }
 console.log('[PASS] UCSEM129 was successfully injected with 1 credit.');
 
-// Expected SGPA with PASS (UCSEM129 is neutral): ((8.0 * 4) + 0) / 4 = 8.00
+// 1. Verify NOT_UPDATED baseline:
+// Expected SGPA with NOT_UPDATED (neutral): ((8.0 * 4) + 0) / 4 = 8.00
+const expectedSgpaNotUpdated = 8.00;
+console.log(`Calculated SGPA (NOT_UPDATED): ${studentS2.sgpa}`);
+if (Math.abs(studentS2.sgpa - expectedSgpaNotUpdated) > 0.001) {
+  console.error(`[FAIL] Expected SGPA with NOT_UPDATED to be ${expectedSgpaNotUpdated}, got ${studentS2.sgpa}`);
+  process.exit(1);
+}
+console.log('[PASS] Baseline SGPA with injected UCSEM129 NOT_UPDATED is correct.');
+
+// Verify completed credits with NOT_UPDATED is 4
+const completedCreditsNotUpdated = getCompletedCredits(studentS2);
+console.log('Completed Credits (NOT_UPDATED):', completedCreditsNotUpdated);
+if (completedCreditsNotUpdated !== 4) {
+  console.error(`[FAIL] Expected completed credits to be 4, got ${completedCreditsNotUpdated}`);
+  process.exit(1);
+}
+console.log('[PASS] Completed credits with injected UCSEM129 NOT_UPDATED is correct.');
+
+// 2. Change grade of UCSEM129 to PASS and verify SGPA remains neutral and completed credits increases to 5
+studentS2.grades['UCSEM129'] = 'PASS';
+processParsedData();
+
 const expectedSgpaPass = 8.00;
 console.log(`Calculated SGPA (PASS): ${studentS2.sgpa}`);
 if (Math.abs(studentS2.sgpa - expectedSgpaPass) > 0.001) {
   console.error(`[FAIL] Expected SGPA with PASS to be ${expectedSgpaPass}, got ${studentS2.sgpa}`);
   process.exit(1);
 }
-console.log('[PASS] Baseline SGPA with injected UCSEM129 PASS is correct.');
+console.log('[PASS] SGPA remains neutral when UCSEM129 is set to PASS.');
 
-// Verify completed credits with PASS is 5
 const completedCreditsPass = getCompletedCredits(studentS2);
 console.log('Completed Credits (PASS):', completedCreditsPass);
 if (completedCreditsPass !== 5) {
@@ -774,11 +795,10 @@ if (completedCreditsPass !== 5) {
 }
 console.log('[PASS] Completed credits with injected UCSEM129 PASS is correct.');
 
-// Change grade of UCSEM129 to FAIL and verify SGPA shifts
+// 3. Change grade of UCSEM129 to FAIL and verify SGPA drops and completed credits drops back to 4
 studentS2.grades['UCSEM129'] = 'FAIL';
 processParsedData();
 
-// Expected SGPA with FAIL (credits included in denominator): ((8.0 * 4) + 0) / (4 + 1) = 32 / 5 = 6.40
 const expectedSgpaFail = 6.40;
 console.log(`Calculated SGPA (FAIL): ${studentS2.sgpa}`);
 if (Math.abs(studentS2.sgpa - expectedSgpaFail) > 0.001) {

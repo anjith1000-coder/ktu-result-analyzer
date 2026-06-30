@@ -154,7 +154,7 @@ function getCompletedCredits(student) {
   let completed = 0;
   Object.keys(student.grades).forEach(subCode => {
     const grade = student.grades[subCode];
-    if (!['F', 'FE', 'I', 'FAIL'].includes(grade)) {
+    if (!['F', 'FE', 'I', 'FAIL', 'NOT_UPDATED'].includes(grade)) {
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       completed += credit;
     }
@@ -741,7 +741,7 @@ function processParsedData() {
     globalCreditsMap["UCSEM129"] = 1;
     state.students.forEach(student => {
       if (student.grades["UCSEM129"] === undefined) {
-        student.grades["UCSEM129"] = "PASS";
+        student.grades["UCSEM129"] = "NOT_UPDATED";
       }
     });
   } else {
@@ -806,14 +806,14 @@ function processParsedData() {
       totalSubjects++;
       if (['F', 'FE', 'I', 'FAIL'].includes(grade)) {
         backlogs++;
-      } else {
+      } else if (grade !== 'NOT_UPDATED') {
         passedSubjects++;
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      // "PASS" grade is neutral in SGPA: its credits/points are completely omitted from the SGPA math.
+      // "PASS" and "NOT_UPDATED" grades are neutral in SGPA: credits/points are completely omitted from the SGPA math.
       // "FAIL" grade adds credits to denominator, but points contributed are 0.
-      if (grade !== 'PASS') {
+      if (grade !== 'PASS' && grade !== 'NOT_UPDATED') {
         let points = getGradePoints(grade, state.scheme);
         earnedGradePoints += points * credit;
         totalCredits += credit;
@@ -1725,6 +1725,7 @@ window.viewStudentDetails = function(studentId) {
     if (subCode === 'UCSEM129') {
       gradeBadgeHtml = `
         <select class="ucsem129-grade-select select-filter" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.85rem; font-weight: bold; border-radius: 4px; border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-primary); cursor: pointer;">
+          <option value="NOT_UPDATED" ${grade === 'NOT_UPDATED' ? 'selected' : ''}>Not Updated</option>
           <option value="PASS" ${grade === 'PASS' ? 'selected' : ''}>PASS</option>
           <option value="FAIL" ${grade === 'FAIL' ? 'selected' : ''}>FAIL</option>
         </select>
@@ -1792,6 +1793,7 @@ const maxerGradePoints = {
   'P': 5.5,
   'PASS': 5.0,
   'FAIL': 0.0,
+  'NOT_UPDATED': 0.0,
   'F': 0.0,
   'FE': 0.0,
   'I': 0.0
