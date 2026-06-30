@@ -787,13 +787,13 @@ if (completedCredits !== 20) {
 }
 console.log('[PASS] Completed credits remains at 20.');
 
-// Verify backlog count is locked at 1
+// Verify backlog count is locked at 0 (shadow subject behavior)
 console.log('Backlogs count:', studentS2.backlogs);
-if (studentS2.backlogs !== 1) {
-  console.error(`[FAIL] Expected backlogs to be 1, got ${studentS2.backlogs}`);
+if (studentS2.backlogs !== 0) {
+  console.error(`[FAIL] Expected backlogs to be 0, got ${studentS2.backlogs}`);
   process.exit(1);
 }
-console.log('[PASS] Backlog counter is locked at 1.');
+console.log('[PASS] Backlog counter is locked at 0.');
 
 // Restore original getElementById mock
 global.document.getElementById = originalGetElementByIdTest11;

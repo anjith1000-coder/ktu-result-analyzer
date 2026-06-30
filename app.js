@@ -805,7 +805,9 @@ function processParsedData() {
       
       totalSubjects++;
       if (['F', 'FE', 'I', 'FAIL'].includes(grade)) {
-        backlogs++;
+        if (subCode !== 'UCSEM129') {
+          backlogs++;
+        }
       } else if (grade !== 'NOT_UPDATED') {
         passedSubjects++;
       }
@@ -1706,7 +1708,7 @@ window.viewStudentDetails = function(studentId) {
     </div>
     <div class="detail-item">
       <span>Backlogs</span>
-      <span style="color: ${student.backlogs > 0 ? 'var(--danger)' : 'var(--success)'};">${student.backlogs > 0 ? student.backlogs + ' Supplies' : 'Clear Pass'}</span>
+      <span style="color: ${student.backlogs > 0 ? 'var(--danger)' : 'var(--success)'};">${student.backlogs > 0 ? student.backlogs + ' Supplies' : '0 Supplies'}</span>
     </div>
   `;
 
