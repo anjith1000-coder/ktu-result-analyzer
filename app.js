@@ -1090,7 +1090,9 @@ function renderDashboardCharts() {
   Object.keys(state.gradePoints).forEach(g => gradeCounts[g] = 0);
   
   activeStudents.forEach(student => {
-    Object.values(student.grades).forEach(grade => {
+    Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
+      const grade = student.grades[subCode];
       if (gradeCounts[grade] !== undefined) gradeCounts[grade]++;
     });
   });
@@ -1140,6 +1142,7 @@ function renderDashboardCharts() {
   const subjectStats = {};
   activeStudents.forEach(student => {
     Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       if (!subjectStats[subCode]) {
         subjectStats[subCode] = { registered: 0, failed: 0 };
       }
@@ -1363,6 +1366,7 @@ function renderSubjectsTable() {
   const activeStudents = getActiveStudents();
   activeStudents.forEach(student => {
     Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       if (!subjectAgg[subCode]) {
         subjectAgg[subCode] = {
           code: subCode,
@@ -1606,6 +1610,7 @@ function renderBacklogsView() {
     if (filterVal !== 'ALL' && student.branch !== filterVal) return;
     
     Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       if (!subjectAgg[subCode]) {
         subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
       }
@@ -1716,6 +1721,7 @@ window.viewStudentDetails = function(studentId) {
   tbody.innerHTML = '';
 
   Object.keys(student.grades).forEach(subCode => {
+    if (subCode === 'UCSEM129') return;
     const grade = student.grades[subCode];
     const name = state.subjects[subCode] || 'Subject Course';
     const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
@@ -1775,6 +1781,7 @@ function openSgpaMaxer(studentId) {
   if (infoGrid) {
     let totalCredits = 0;
     Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       totalCredits += credits;
     });
@@ -1804,6 +1811,7 @@ function openSgpaMaxer(studentId) {
     tbody.innerHTML = '';
     
     Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       const currentGrade = student.grades[subCode];
       const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       const subName = state.subjects[subCode] || 'Subject Course';
@@ -1969,6 +1977,7 @@ function exportToExcelDirect() {
       const subjectAgg = {};
       activeStudents.forEach(student => {
         Object.keys(student.grades).forEach(subCode => {
+          if (subCode === 'UCSEM129') return;
           if (!subjectAgg[subCode]) {
             subjectAgg[subCode] = {
               code: subCode,
@@ -2586,6 +2595,7 @@ function renderUnivMaxerStudentData() {
   if (infoGrid) {
     let totalCredits = 0;
     Object.keys(student.grades).forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       totalCredits += credits;
     });
@@ -2629,6 +2639,7 @@ function renderUnivMaxerStudentData() {
     const courseCodes = Object.keys(student.grades).sort();
 
     courseCodes.forEach(subCode => {
+      if (subCode === 'UCSEM129') return;
       const currentGrade = student.grades[subCode];
       const credits = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       const subName = state.subjects[subCode] || 'Subject Course';

@@ -700,19 +700,34 @@ if (getCompletedCredits(sObj) === 5) {
 console.log('\n--- TEST 11: UCSEM129 COURSE INJECTION & GRADE CHANGE ---');
 
 const originalGetElementByIdTest11 = global.document.getElementById;
-let mockSemesterValue = '2';
+let modalRows = [];
+const mockModalTableBody = {
+  set innerHTML(val) {
+    if (val === '') modalRows = [];
+  },
+  appendChild(child) {
+    modalRows.push(child);
+  }
+};
+
 global.document.getElementById = (id) => {
-  if (id === 'select-semester') {
+  if (id === 'select-semester' || id === 'select-scheme') {
     return {
-      value: mockSemesterValue,
+      value: id === 'select-semester' ? '2' : '2024',
       addEventListener: () => {}
     };
   }
-  if (id === 'select-scheme') {
-    return {
-      value: '2024',
-      addEventListener: () => {}
-    };
+  if (id === 'modal-title') {
+    return { set textContent(val) {} };
+  }
+  if (id === 'modal-student-info') {
+    return { set innerHTML(val) {} };
+  }
+  if (id === 'modal-table-body') {
+    return mockModalTableBody;
+  }
+  if (id === 'details-modal') {
+    return { classList: { add() {}, remove() {} } };
   }
   return {
     addEventListener: () => {},
@@ -795,8 +810,17 @@ if (studentS2.backlogs !== 0) {
 }
 console.log('[PASS] Backlog counter is locked at 0.');
 
+// Verify that the details modal table does not render a row for UCSEM129 (completely invisible in UI)
+global.viewStudentDetails(studentS2.id);
+const containsUCSEM129 = modalRows.some(row => row.innerHTML.includes('UCSEM129'));
+if (containsUCSEM129) {
+  console.error('[FAIL] UCSEM129 is visible in the student academic record!');
+  process.exit(1);
+}
+console.log('[PASS] UCSEM129 is completely invisible in the details modal rendering.');
+
 // Restore original getElementById mock
 global.document.getElementById = originalGetElementByIdTest11;
-console.log('[PASS] UCSEM129 injection and grade change test passed!');
+console.log('[PASS] UCSEM129 injection and invisible verification passed!');
 
 console.log('\nAll tests completed successfully!');
