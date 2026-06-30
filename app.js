@@ -811,9 +811,10 @@ function processParsedData() {
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      // "PASS" and "NOT_UPDATED" grades are neutral in SGPA: credits/points are completely omitted from the SGPA math.
+      // UCSEM129 is a credit-transfer course and is completely neutral in SGPA under all grade states.
+      // For other courses, "PASS" and "NOT_UPDATED" grades are neutral in SGPA: credits/points are completely omitted from the SGPA math.
       // "FAIL" grade adds credits to denominator, but points contributed are 0.
-      if (grade !== 'PASS' && grade !== 'NOT_UPDATED') {
+      if (subCode !== 'UCSEM129' && grade !== 'PASS' && grade !== 'NOT_UPDATED') {
         let points = getGradePoints(grade, state.scheme);
         earnedGradePoints += points * credit;
         totalCredits += credit;
@@ -1915,13 +1916,15 @@ function calculateMaxedSgpa(student) {
     const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
     const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
-    if (originalGrade !== 'PASS') {
-      baselineWeightedPoints += originalPts * credits;
-      baselineCredits += credits;
-    }
-    if (simulatedGrade !== 'PASS') {
-      simulatedWeightedPoints += simulatedPts * credits;
-      simulatedCredits += credits;
+    if (subCode !== 'UCSEM129') {
+      if (originalGrade !== 'PASS' && originalGrade !== 'NOT_UPDATED') {
+        baselineWeightedPoints += originalPts * credits;
+        baselineCredits += credits;
+      }
+      if (simulatedGrade !== 'PASS' && simulatedGrade !== 'NOT_UPDATED') {
+        simulatedWeightedPoints += simulatedPts * credits;
+        simulatedCredits += credits;
+      }
     }
   });
 
@@ -2720,13 +2723,15 @@ function calculateUnivMaxedSgpa(student) {
     const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
     const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
-    if (originalGrade !== 'PASS') {
-      baselineWeightedPoints += originalPts * credits;
-      baselineCredits += credits;
-    }
-    if (simulatedGrade !== 'PASS') {
-      simulatedWeightedPoints += simulatedPts * credits;
-      simulatedCredits += credits;
+    if (subCode !== 'UCSEM129') {
+      if (originalGrade !== 'PASS' && originalGrade !== 'NOT_UPDATED') {
+        baselineWeightedPoints += originalPts * credits;
+        baselineCredits += credits;
+      }
+      if (simulatedGrade !== 'PASS' && simulatedGrade !== 'NOT_UPDATED') {
+        simulatedWeightedPoints += simulatedPts * credits;
+        simulatedCredits += credits;
+      }
     }
   });
 

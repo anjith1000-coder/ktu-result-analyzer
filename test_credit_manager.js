@@ -729,7 +729,12 @@ state.students = [
     id: 'PRC24CS001',
     name: 'Test Student S2',
     grades: {
-      'CYT100': 'B+' // 8.0 points, 4 credits
+      'CYT100': 'B',
+      'MAT102': 'B',
+      'EST100': 'B',
+      'PHT100': 'B',
+      'HUN102': 'B',
+      'CH100': 'D'
     },
     branch: 'CS',
     status: 'PASS',
@@ -738,6 +743,11 @@ state.students = [
 ];
 
 globalCreditsMap['CYT100'] = 4;
+globalCreditsMap['MAT102'] = 4;
+globalCreditsMap['EST100'] = 4;
+globalCreditsMap['PHT100'] = 3;
+globalCreditsMap['HUN102'] = 3;
+globalCreditsMap['CH100'] = 2;
 
 // Run processing
 processParsedData();
@@ -756,65 +766,69 @@ if (resolvedUCSEMCredits !== 1) {
 }
 console.log('[PASS] UCSEM129 was successfully injected with 1 credit.');
 
-// 1. Verify NOT_UPDATED baseline:
-// Expected SGPA with NOT_UPDATED (neutral): ((8.0 * 4) + 0) / 4 = 8.00
-const expectedSgpaNotUpdated = 8.00;
+// 1. State 1 (NOT_UPDATED):
+// Expected SGPA is exactly 7.35 and Backlogs = 0. Completed Credits = 20.
+const expectedSgpaBaseline = 7.35;
 console.log(`Calculated SGPA (NOT_UPDATED): ${studentS2.sgpa}`);
-if (Math.abs(studentS2.sgpa - expectedSgpaNotUpdated) > 0.001) {
-  console.error(`[FAIL] Expected SGPA with NOT_UPDATED to be ${expectedSgpaNotUpdated}, got ${studentS2.sgpa}`);
+if (Math.abs(studentS2.sgpa - expectedSgpaBaseline) > 0.001) {
+  console.error(`[FAIL] Expected SGPA with NOT_UPDATED to be ${expectedSgpaBaseline}, got ${studentS2.sgpa}`);
   process.exit(1);
 }
-console.log('[PASS] Baseline SGPA with injected UCSEM129 NOT_UPDATED is correct.');
-
-// Verify completed credits with NOT_UPDATED is 4
+if (studentS2.backlogs !== 0) {
+  console.error(`[FAIL] Expected backlogs with NOT_UPDATED to be 0, got ${studentS2.backlogs}`);
+  process.exit(1);
+}
 const completedCreditsNotUpdated = getCompletedCredits(studentS2);
 console.log('Completed Credits (NOT_UPDATED):', completedCreditsNotUpdated);
-if (completedCreditsNotUpdated !== 4) {
-  console.error(`[FAIL] Expected completed credits to be 4, got ${completedCreditsNotUpdated}`);
+if (completedCreditsNotUpdated !== 20) {
+  console.error(`[FAIL] Expected completed credits to be 20, got ${completedCreditsNotUpdated}`);
   process.exit(1);
 }
-console.log('[PASS] Completed credits with injected UCSEM129 NOT_UPDATED is correct.');
+console.log('[PASS] State 1 (NOT_UPDATED) verified successfully.');
 
-// 2. Change grade of UCSEM129 to PASS and verify SGPA remains neutral and completed credits increases to 5
+// 2. State 2 (PASS):
+// Change grade of UCSEM129 to PASS and verify SGPA remains exactly 7.35, Completed Credits = 21, and Backlogs = 0
 studentS2.grades['UCSEM129'] = 'PASS';
 processParsedData();
 
-const expectedSgpaPass = 8.00;
 console.log(`Calculated SGPA (PASS): ${studentS2.sgpa}`);
-if (Math.abs(studentS2.sgpa - expectedSgpaPass) > 0.001) {
-  console.error(`[FAIL] Expected SGPA with PASS to be ${expectedSgpaPass}, got ${studentS2.sgpa}`);
+if (Math.abs(studentS2.sgpa - expectedSgpaBaseline) > 0.001) {
+  console.error(`[FAIL] Expected SGPA with PASS to be ${expectedSgpaBaseline}, got ${studentS2.sgpa}`);
   process.exit(1);
 }
-console.log('[PASS] SGPA remains neutral when UCSEM129 is set to PASS.');
-
+if (studentS2.backlogs !== 0) {
+  console.error(`[FAIL] Expected backlogs with PASS to be 0, got ${studentS2.backlogs}`);
+  process.exit(1);
+}
 const completedCreditsPass = getCompletedCredits(studentS2);
 console.log('Completed Credits (PASS):', completedCreditsPass);
-if (completedCreditsPass !== 5) {
-  console.error(`[FAIL] Expected completed credits to be 5, got ${completedCreditsPass}`);
+if (completedCreditsPass !== 21) {
+  console.error(`[FAIL] Expected completed credits to be 21, got ${completedCreditsPass}`);
   process.exit(1);
 }
-console.log('[PASS] Completed credits with injected UCSEM129 PASS is correct.');
+console.log('[PASS] State 2 (PASS) verified successfully.');
 
-// 3. Change grade of UCSEM129 to FAIL and verify SGPA drops and completed credits drops back to 4
+// 3. State 3 (FAIL):
+// Change grade of UCSEM129 to FAIL and verify SGPA remains exactly 7.35, Completed Credits drops back to baseline (20), and Backlogs = 1
 studentS2.grades['UCSEM129'] = 'FAIL';
 processParsedData();
 
-const expectedSgpaFail = 6.40;
 console.log(`Calculated SGPA (FAIL): ${studentS2.sgpa}`);
-if (Math.abs(studentS2.sgpa - expectedSgpaFail) > 0.001) {
-  console.error(`[FAIL] Expected SGPA with FAIL to be ${expectedSgpaFail}, got ${studentS2.sgpa}`);
+if (Math.abs(studentS2.sgpa - expectedSgpaBaseline) > 0.001) {
+  console.error(`[FAIL] Expected SGPA with FAIL to be ${expectedSgpaBaseline}, got ${studentS2.sgpa}`);
   process.exit(1);
 }
-console.log('[PASS] SGPA shifts correctly and drops lower than PASS state when UCSEM129 is set to FAIL.');
-
-// Verify completed credits with FAIL is 4
+if (studentS2.backlogs !== 1) {
+  console.error(`[FAIL] Expected backlogs with FAIL to be 1, got ${studentS2.backlogs}`);
+  process.exit(1);
+}
 const completedCreditsFail = getCompletedCredits(studentS2);
 console.log('Completed Credits (FAIL):', completedCreditsFail);
-if (completedCreditsFail !== 4) {
-  console.error(`[FAIL] Expected completed credits to be 4, got ${completedCreditsFail}`);
+if (completedCreditsFail !== 20) {
+  console.error(`[FAIL] Expected completed credits to be 20, got ${completedCreditsFail}`);
   process.exit(1);
 }
-console.log('[PASS] Completed credits with injected UCSEM129 FAIL is correct.');
+console.log('[PASS] State 3 (FAIL) verified successfully.');
 
 // Restore original getElementById mock
 global.document.getElementById = originalGetElementByIdTest11;
