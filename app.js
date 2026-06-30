@@ -811,9 +811,13 @@ function processParsedData() {
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      let points = getGradePoints(grade, state.scheme);
-      earnedGradePoints += points * credit;
-      totalCredits += credit;
+      // "PASS" grade is neutral in SGPA: its credits/points are completely omitted from the SGPA math.
+      // "FAIL" grade adds credits to denominator, but points contributed are 0.
+      if (grade !== 'PASS') {
+        let points = getGradePoints(grade, state.scheme);
+        earnedGradePoints += points * credit;
+        totalCredits += credit;
+      }
     });
     
     student.backlogs = backlogs;
@@ -1895,7 +1899,8 @@ function closeSgpaMaxer() {
 window.closeSgpaMaxer = closeSgpaMaxer;
 
 function calculateMaxedSgpa(student) {
-  let totalCredits = 0;
+  let baselineCredits = 0;
+  let simulatedCredits = 0;
   let baselineWeightedPoints = 0;
   let simulatedWeightedPoints = 0;
 
@@ -1908,13 +1913,18 @@ function calculateMaxedSgpa(student) {
     const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
     const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
-    baselineWeightedPoints += originalPts * credits;
-    simulatedWeightedPoints += simulatedPts * credits;
-    totalCredits += credits;
+    if (originalGrade !== 'PASS') {
+      baselineWeightedPoints += originalPts * credits;
+      baselineCredits += credits;
+    }
+    if (simulatedGrade !== 'PASS') {
+      simulatedWeightedPoints += simulatedPts * credits;
+      simulatedCredits += credits;
+    }
   });
 
-  const baselineSgpa = totalCredits > 0 ? (baselineWeightedPoints / totalCredits) : 0.0;
-  const simulatedSgpa = totalCredits > 0 ? (simulatedWeightedPoints / totalCredits) : 0.0;
+  const baselineSgpa = baselineCredits > 0 ? (baselineWeightedPoints / baselineCredits) : 0.0;
+  const simulatedSgpa = simulatedCredits > 0 ? (simulatedWeightedPoints / simulatedCredits) : 0.0;
   const delta = simulatedSgpa - baselineSgpa;
 
   const summary = document.getElementById('sgpa-maxer-summary');
@@ -2694,7 +2704,8 @@ function renderUnivMaxerStudentData() {
 }
 
 function calculateUnivMaxedSgpa(student) {
-  let totalCredits = 0;
+  let baselineCredits = 0;
+  let simulatedCredits = 0;
   let baselineWeightedPoints = 0;
   let simulatedWeightedPoints = 0;
 
@@ -2707,13 +2718,18 @@ function calculateUnivMaxedSgpa(student) {
     const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
     const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
-    baselineWeightedPoints += originalPts * credits;
-    simulatedWeightedPoints += simulatedPts * credits;
-    totalCredits += credits;
+    if (originalGrade !== 'PASS') {
+      baselineWeightedPoints += originalPts * credits;
+      baselineCredits += credits;
+    }
+    if (simulatedGrade !== 'PASS') {
+      simulatedWeightedPoints += simulatedPts * credits;
+      simulatedCredits += credits;
+    }
   });
 
-  const baselineSgpa = totalCredits > 0 ? (baselineWeightedPoints / totalCredits) : 0.0;
-  const simulatedSgpa = totalCredits > 0 ? (simulatedWeightedPoints / totalCredits) : 0.0;
+  const baselineSgpa = baselineCredits > 0 ? (baselineWeightedPoints / baselineCredits) : 0.0;
+  const simulatedSgpa = simulatedCredits > 0 ? (simulatedWeightedPoints / simulatedCredits) : 0.0;
   const delta = simulatedSgpa - baselineSgpa;
 
   const summary = document.getElementById('univ-maxer-summary');

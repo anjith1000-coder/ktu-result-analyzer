@@ -669,8 +669,8 @@ globalCreditsMap['GXEST203'] = 3;
 processParsedData();
 
 const sObj = state.students[0];
-// expected SGPA: ((8.5 * 4) + (5.0 * 1) + 0) / (4 + 1 + 3) = 39.0 / 8 = 4.875
-const expectedSgpa10 = 4.875;
+// expected SGPA (PASS is completely neutral, FAIL counts in denominator): ((8.5 * 4) + 0) / (4 + 3) = 34.0 / 7 = 4.85714
+const expectedSgpa10 = 34 / 7;
 console.log(`Calculated SGPA: ${sObj.sgpa}`);
 console.log(`Calculated Backlogs: ${sObj.backlogs}`);
 console.log(`Calculated Completed Credits (including PASS, excluding FAIL/backlogs): ${getCompletedCredits(sObj)}`);
@@ -756,14 +756,23 @@ if (resolvedUCSEMCredits !== 1) {
 }
 console.log('[PASS] UCSEM129 was successfully injected with 1 credit.');
 
-// Expected SGPA with PASS: ((8.0 * 4) + (5.0 * 1)) / (4 + 1) = (32.0 + 5.0) / 5 = 37.0 / 5 = 7.40
-const expectedSgpaPass = 7.40;
+// Expected SGPA with PASS (UCSEM129 is neutral): ((8.0 * 4) + 0) / 4 = 8.00
+const expectedSgpaPass = 8.00;
 console.log(`Calculated SGPA (PASS): ${studentS2.sgpa}`);
 if (Math.abs(studentS2.sgpa - expectedSgpaPass) > 0.001) {
   console.error(`[FAIL] Expected SGPA with PASS to be ${expectedSgpaPass}, got ${studentS2.sgpa}`);
   process.exit(1);
 }
 console.log('[PASS] Baseline SGPA with injected UCSEM129 PASS is correct.');
+
+// Verify completed credits with PASS is 5
+const completedCreditsPass = getCompletedCredits(studentS2);
+console.log('Completed Credits (PASS):', completedCreditsPass);
+if (completedCreditsPass !== 5) {
+  console.error(`[FAIL] Expected completed credits to be 5, got ${completedCreditsPass}`);
+  process.exit(1);
+}
+console.log('[PASS] Completed credits with injected UCSEM129 PASS is correct.');
 
 // Change grade of UCSEM129 to FAIL and verify SGPA shifts
 studentS2.grades['UCSEM129'] = 'FAIL';
@@ -777,6 +786,15 @@ if (Math.abs(studentS2.sgpa - expectedSgpaFail) > 0.001) {
   process.exit(1);
 }
 console.log('[PASS] SGPA shifts correctly and drops lower than PASS state when UCSEM129 is set to FAIL.');
+
+// Verify completed credits with FAIL is 4
+const completedCreditsFail = getCompletedCredits(studentS2);
+console.log('Completed Credits (FAIL):', completedCreditsFail);
+if (completedCreditsFail !== 4) {
+  console.error(`[FAIL] Expected completed credits to be 4, got ${completedCreditsFail}`);
+  process.exit(1);
+}
+console.log('[PASS] Completed credits with injected UCSEM129 FAIL is correct.');
 
 // Restore original getElementById mock
 global.document.getElementById = originalGetElementByIdTest11;
