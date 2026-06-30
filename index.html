@@ -26,24 +26,24 @@
         <p class="subtitle" id="app-subtitle">Transform official university marksheets into actionable academic insights</p>
       </div>
       <div style="display: flex; gap: 0.75rem; align-items: center;">
-        <div class="scheme-select-wrapper" style="display: flex; align-items: center; gap: 0.5rem; background: var(--panel-bg); border: 1px solid var(--border-color); padding: 0.55rem 0.75rem; border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);">
-          <label for="select-scheme" style="font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">Scheme:</label>
-          <select id="select-scheme" style="background: none; border: none; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; color: var(--accent-olive); outline: none; cursor: pointer;">
+        <div class="scheme-select-wrapper">
+          <label for="select-scheme">Scheme:</label>
+          <select id="select-scheme">
             <option value="2015">2015 Scheme</option>
             <option value="2019" selected>2019 Scheme</option>
             <option value="2024">2024 Scheme</option>
           </select>
         </div>
-        <div class="scheme-select-wrapper" style="display: flex; align-items: center; gap: 0.5rem; background: var(--panel-bg); border: 1px solid var(--border-color); padding: 0.55rem 0.75rem; border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);">
-          <label for="select-semester" style="font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">Semester:</label>
-          <select id="select-semester" style="background: none; border: none; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; color: var(--accent-olive); outline: none; cursor: pointer;">
+        <div class="scheme-select-wrapper">
+          <label for="select-semester">Semester:</label>
+          <select id="select-semester">
             <option value="1">Semester 1</option>
             <option value="2" selected>Semester 2</option>
           </select>
         </div>
-        <div id="dept-filter-wrapper" class="scheme-select-wrapper hidden" style="display: flex; align-items: center; gap: 0.5rem; background: var(--panel-bg); border: 1px solid var(--border-color); padding: 0.55rem 0.75rem; border-radius: 6px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);">
-          <label for="dept-operation-filter" style="font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; color: var(--text-primary);">Department:</label>
-          <select id="dept-operation-filter" style="background: none; border: none; font-family: var(--font-display); font-weight: 700; font-size: 0.85rem; color: var(--accent-olive); outline: none; cursor: pointer;">
+        <div id="dept-filter-wrapper" class="scheme-select-wrapper hidden">
+          <label for="dept-operation-filter">Department:</label>
+          <select id="dept-operation-filter">
             <option value="ALL">All Departments</option>
           </select>
         </div>
