@@ -134,15 +134,18 @@ const branchNames = {
 const defaultGrades = {
   '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'PASS': 5, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 },
   '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'PASS': 5.5, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 },
-  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'PASS': 5.5, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 }
+  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'PASS': 5.0, 'FAIL': 0, 'F': 0, 'FE': 0, 'I': 0 }
 };
 
 function getGradePoints(grade, scheme) {
   let g = (grade || '').toUpperCase().trim();
+  const s = scheme || state.scheme || '2019';
   if (g === 'PASS') {
+    if (s === '2024') {
+      return 5.0;
+    }
     g = 'P';
   }
-  const s = scheme || state.scheme || '2019';
   const pointsMap = defaultGrades[s] || defaultGrades['2019'];
   return pointsMap[g] !== undefined ? pointsMap[g] : 0.0;
 }
@@ -1783,7 +1786,7 @@ const maxerGradePoints = {
   'C': 6.5,
   'D': 6.0,
   'P': 5.5,
-  'PASS': 5.5,
+  'PASS': 5.0,
   'FAIL': 0.0,
   'F': 0.0,
   'FE': 0.0,

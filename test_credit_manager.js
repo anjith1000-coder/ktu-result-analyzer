@@ -669,8 +669,8 @@ globalCreditsMap['GXEST203'] = 3;
 processParsedData();
 
 const sObj = state.students[0];
-// expected SGPA: ((8.5 * 4) + (5.5 * 1) + 0) / (4 + 1 + 3) = 39.5 / 8 = 4.9375
-const expectedSgpa10 = 4.9375;
+// expected SGPA: ((8.5 * 4) + (5.0 * 1) + 0) / (4 + 1 + 3) = 39.0 / 8 = 4.875
+const expectedSgpa10 = 4.875;
 console.log(`Calculated SGPA: ${sObj.sgpa}`);
 console.log(`Calculated Backlogs: ${sObj.backlogs}`);
 console.log(`Calculated Completed Credits (including PASS, excluding FAIL/backlogs): ${getCompletedCredits(sObj)}`);
@@ -756,8 +756,8 @@ if (resolvedUCSEMCredits !== 1) {
 }
 console.log('[PASS] UCSEM129 was successfully injected with 1 credit.');
 
-// Expected SGPA with PASS: ((8.0 * 4) + (5.5 * 1)) / (4 + 1) = (32.0 + 5.5) / 5 = 37.5 / 5 = 7.50
-const expectedSgpaPass = 7.50;
+// Expected SGPA with PASS: ((8.0 * 4) + (5.0 * 1)) / (4 + 1) = (32.0 + 5.0) / 5 = 37.0 / 5 = 7.40
+const expectedSgpaPass = 7.40;
 console.log(`Calculated SGPA (PASS): ${studentS2.sgpa}`);
 if (Math.abs(studentS2.sgpa - expectedSgpaPass) > 0.001) {
   console.error(`[FAIL] Expected SGPA with PASS to be ${expectedSgpaPass}, got ${studentS2.sgpa}`);
