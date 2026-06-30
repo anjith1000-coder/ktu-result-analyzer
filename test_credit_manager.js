@@ -588,4 +588,103 @@ if (!clearanceMetricsContent.includes('Supply CS 1') && !clearanceMetricsContent
 global.document.getElementById = originalGetElementByIdDept;
 console.log('[PASS] Regular cohort and supplementary student separation verified successfully.');
 
+// Test 9: Multi-letter grade parsing and absent mapping
+console.log('\n--- TEST 9: MULTI-LETTER GRADES & ABSENT MAPPING ---');
+const testText9 = "UCHWT127(PASS) CST201(Ab) EST200(FE) CYT100(FAIL)\nstudent results follow:\nPRC24CS001(S) PRC24CS001 UCHWT127(PASS) CST201(Ab) EST200(FE) CYT100(FAIL)";
+
+// Mock document elements for parser scheme change detection
+const originalGetElementByIdTest9 = global.document.getElementById;
+global.document.getElementById = (id) => {
+  return {
+    addEventListener: () => {},
+    classList: { remove: () => {}, add: () => {} },
+    appendChild: () => {},
+    value: '2024',
+    innerHTML: ''
+  };
+};
+
+const originalRecalculateAndRefreshTest9 = recalculateAndRefresh;
+global.recalculateAndRefresh = recalculateAndRefresh = () => {
+  processParsedData();
+};
+
+state.students = [];
+state.subjects = {};
+parseKTUResultText(testText9);
+
+console.log('Parsed subjects:', Object.keys(state.students[0].grades));
+console.log('Parsed grades:', state.students[0].grades);
+
+const gradesParsed = state.students[0].grades;
+if (gradesParsed['UCHWT127'] !== 'PASS') {
+  console.error(`[FAIL] UCHWT127 grade should be PASS, got: ${gradesParsed['UCHWT127']}`);
+  process.exit(1);
+}
+if (gradesParsed['CST201'] !== 'F') {
+  console.error(`[FAIL] CST201 (Ab) grade should be mapped to F, got: ${gradesParsed['CST201']}`);
+  process.exit(1);
+}
+if (gradesParsed['EST200'] !== 'F') {
+  console.error(`[FAIL] EST200 (FE) grade should be mapped to F, got: ${gradesParsed['EST200']}`);
+  process.exit(1);
+}
+if (gradesParsed['CYT100'] !== 'FAIL') {
+  console.error(`[FAIL] CYT100 grade should be FAIL, got: ${gradesParsed['CYT100']}`);
+  process.exit(1);
+}
+console.log('[PASS] Multi-letter grades parsed and absent grades mapped to F correctly.');
+global.document.getElementById = originalGetElementByIdTest9;
+global.recalculateAndRefresh = recalculateAndRefresh = originalRecalculateAndRefreshTest9;
+
+// Test 10: SGPA Neutrality of PASS/FAIL grades
+console.log('\n--- TEST 10: SGPA NEUTRALITY OF PASS/FAIL ---');
+state.students = [
+  {
+    id: 'PRC24CS001',
+    name: 'Neutrality Student',
+    grades: {
+      'GAPHT121': 'A',     // 8.5 points, 4 credits
+      'UCHWT127': 'PASS',  // Audit course, should be neutral (ignored in SGPA)
+      'GXEST203': 'FAIL'   // Audit course, should be neutral in SGPA, but count as 1 backlog
+    },
+    branch: 'CS',
+    status: 'SUPPLY',
+    sgpa: 0
+  }
+];
+
+globalCreditsMap['GAPHT121'] = 4;
+globalCreditsMap['UCHWT127'] = 3;
+globalCreditsMap['GXEST203'] = 3;
+
+processParsedData();
+
+const sObj = state.students[0];
+const expectedSgpa10 = 8.5; // (8.5 * 4) / 4 = 8.5 (excluding UCHWT127 and GXEST203 credits entirely)
+console.log(`Calculated SGPA: ${sObj.sgpa}`);
+console.log(`Calculated Backlogs: ${sObj.backlogs}`);
+console.log(`Calculated Completed Credits (excluding PASS/FAIL/backlogs): ${getCompletedCredits(sObj)}`);
+
+if (Math.abs(sObj.sgpa - expectedSgpa10) < 0.001) {
+  console.log('[PASS] SGPA calculated correctly excluding PASS/FAIL credits.');
+} else {
+  console.error(`[FAIL] SGPA calculation with PASS/FAIL failed. Got: ${sObj.sgpa}, Expected: ${expectedSgpa10}`);
+  process.exit(1);
+}
+
+if (sObj.backlogs === 1) {
+  console.log('[PASS] FAIL counted as backlog successfully.');
+} else {
+  console.error(`[FAIL] FAIL was not counted as backlog. Got backlogs count: ${sObj.backlogs}`);
+  process.exit(1);
+}
+
+if (getCompletedCredits(sObj) === 4) {
+  console.log('[PASS] Completed credits calculated correctly excluding PASS/FAIL/backlogs.');
+} else {
+  console.error(`[FAIL] Completed credits calculation with PASS/FAIL failed. Got: ${getCompletedCredits(sObj)}`);
+  process.exit(1);
+}
+
 console.log('\nAll tests completed successfully!');

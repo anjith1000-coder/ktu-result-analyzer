@@ -558,8 +558,9 @@ tr:hover td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  min-width: 28px;
   height: 28px;
+  padding: 0 6px;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 700;
@@ -577,6 +578,8 @@ tr:hover td {
 .grade-badge.d { background: #FAF5EE; color: #888; }
 .grade-badge.p { background: #F5F2EB; color: var(--text-muted); }
 .grade-badge.f, .grade-badge.fe { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+.grade-badge.pass { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+.grade-badge.fail { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
 
 /* Pass/Fail Status Pills */
 .status-pill {

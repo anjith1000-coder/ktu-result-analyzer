@@ -140,6 +140,18 @@ function getGradePoints(grade, scheme) {
   return pointsMap[g] !== undefined ? pointsMap[g] : 0.0;
 }
 
+function getCompletedCredits(student) {
+  let completed = 0;
+  Object.keys(student.grades).forEach(subCode => {
+    const grade = student.grades[subCode];
+    if (!['F', 'FE', 'I', 'FAIL', 'PASS'].includes(grade)) {
+      const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+      completed += credit;
+    }
+  });
+  return completed;
+}
+
 // Initialize the Application
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -646,12 +658,15 @@ function parseKTUResultText(text) {
     const blockText = text.substring(startIndex, endIndex);
     
     // Find all subject grade patterns: e.g., MET416(C) or MAT201(A+)
-    const gradeRegex = /\b([A-Z0-9_\-/]+)\((O|S|A\+|A|B\+|B|C\+|C|D|P|F|FE|I)\)/g;
+    const gradeRegex = /\b([A-Z0-9_\-/]+)\(([A-Za-z0-9+-]+)\)/g;
     let gradeMatch;
     const studentGrades = {};
     while ((gradeMatch = gradeRegex.exec(blockText)) !== null) {
       const subCode = gradeMatch[1].toUpperCase();
-      const grade = gradeMatch[2].toUpperCase();
+      let grade = gradeMatch[2].toUpperCase();
+      if (grade === 'AB' || grade === 'ABSENT' || grade === 'FE') {
+        grade = 'F';
+      }
       studentGrades[subCode] = grade;
       
       // If subject was not mapped to a name yet, initialize with code as placeholder name
@@ -737,16 +752,19 @@ function processParsedData() {
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       
       totalSubjects++;
-      if (['F', 'FE', 'I'].includes(grade)) {
+      if (['F', 'FE', 'I', 'FAIL'].includes(grade)) {
         backlogs++;
       } else {
         passedSubjects++;
       }
       
       // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
-      let points = getGradePoints(grade, state.scheme);
-      earnedGradePoints += points * credit;
-      totalCredits += credit;
+      // Non-standard grades like "PASS" or "FAIL" are treated as neutral (credits not added to totalCredits)
+      if (grade !== 'PASS' && grade !== 'FAIL') {
+        let points = getGradePoints(grade, state.scheme);
+        earnedGradePoints += points * credit;
+        totalCredits += credit;
+      }
     });
     
     student.backlogs = backlogs;
@@ -1071,7 +1089,7 @@ function renderDashboardCharts() {
         subjectStats[subCode] = { registered: 0, failed: 0 };
       }
       subjectStats[subCode].registered++;
-      if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+      if (['F', 'FE', 'I', 'FAIL'].includes(student.grades[subCode])) {
         subjectStats[subCode].failed++;
       }
     });
@@ -1305,15 +1323,16 @@ function renderSubjectsTable() {
       
       const grade = student.grades[subCode];
       subjectAgg[subCode].registered++;
-      if (['F', 'FE', 'I'].includes(grade)) {
+      if (['F', 'FE', 'I', 'FAIL'].includes(grade)) {
         subjectAgg[subCode].failed++;
       } else {
         subjectAgg[subCode].passed++;
       }
       
-      if (subjectAgg[subCode].gradeDistribution[grade] !== undefined) {
-        subjectAgg[subCode].gradeDistribution[grade]++;
+      if (subjectAgg[subCode].gradeDistribution[grade] === undefined) {
+        subjectAgg[subCode].gradeDistribution[grade] = 0;
       }
+      subjectAgg[subCode].gradeDistribution[grade]++;
     });
   });
 
@@ -1439,7 +1458,7 @@ function renderStudentsTable() {
     let actionsHtml = "";
     if (stud.backlogs > 0) {
       const failedSubs = Object.keys(stud.grades)
-        .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
+        .filter(code => ['F', 'FE', 'I', 'FAIL'].includes(stud.grades[code]))
         .map(code => `<span class="backlog-badge" style="background-color: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.75rem; font-family: monospace; font-weight: 600; margin-right: 0.25rem;">[${code}]</span>`)
         .join('');
       actionsHtml = `<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">${failedSubs} <button class="btn btn-accent" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="viewStudentDetails('${stud.id}')">View Details</button></div>`;
@@ -1502,7 +1521,7 @@ function renderBacklogsView() {
     tbodyMax.innerHTML = `<tr><td colspan="${hasNames ? 6 : 5}" style="text-align:center; color:var(--text-muted);">No backlogs recorded! Outstanding campus performance.</td></tr>`;
   } else {
     topBacklogStudents.forEach(stud => {
-      const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I'].includes(stud.grades[code])).join(', ');
+      const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I', 'FAIL'].includes(stud.grades[code])).join(', ');
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -1536,7 +1555,7 @@ function renderBacklogsView() {
         subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
       }
       subjectAgg[subCode].registered++;
-      if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+      if (['F', 'FE', 'I', 'FAIL'].includes(student.grades[subCode])) {
         subjectAgg[subCode].failed++;
       }
     });
@@ -1799,6 +1818,10 @@ function calculateMaxedSgpa(student) {
     const originalGrade = student.grades[subCode];
     const simulatedGrade = select.value;
 
+    if (originalGrade === 'PASS' || originalGrade === 'FAIL' || simulatedGrade === 'PASS' || simulatedGrade === 'FAIL') {
+      return;
+    }
+
     const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
     const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
 
@@ -1895,7 +1918,7 @@ function exportToExcelDirect() {
             };
           }
           subjectAgg[subCode].registered++;
-          if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+          if (['F', 'FE', 'I', 'FAIL'].includes(student.grades[subCode])) {
             subjectAgg[subCode].failed++;
           } else {
             subjectAgg[subCode].passed++;
@@ -2006,18 +2029,6 @@ function exportToExcelDirect() {
       const sortedRegularStudents = [...regularStudents].sort((a, b) => b.sgpa - a.sgpa);
       const topStudentsList = sortedRegularStudents.slice(0, 15);
 
-      function getCompletedCredits(student) {
-        let completed = 0;
-        Object.keys(student.grades).forEach(subCode => {
-          const grade = student.grades[subCode];
-          if (!['F', 'FE', 'I'].includes(grade)) {
-            const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
-            completed += credit;
-          }
-        });
-        return completed;
-      }
-
       let topPerformersRows = "";
       if (topStudentsList.length === 0) {
         topPerformersRows = `
@@ -2066,7 +2077,7 @@ function exportToExcelDirect() {
                             || branchNames[stud.branch] 
                             || stud.branch;
           const failedCodes = Object.keys(stud.grades)
-            .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
+            .filter(code => ['F', 'FE', 'I', 'FAIL'].includes(stud.grades[code]))
             .join(', ') || 'None';
           const academicStatus = stud.isSupply ? 'Supplementary Candidate' : 'Regular Supply';
           backlogTrackerRows += `
@@ -2610,6 +2621,10 @@ function calculateUnivMaxedSgpa(student) {
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
     const simulatedGrade = select.value;
+
+    if (originalGrade === 'PASS' || originalGrade === 'FAIL' || simulatedGrade === 'PASS' || simulatedGrade === 'FAIL') {
+      return;
+    }
 
     const originalPts = maxerGradePoints[originalGrade] !== undefined ? maxerGradePoints[originalGrade] : 0.0;
     const simulatedPts = maxerGradePoints[simulatedGrade] !== undefined ? maxerGradePoints[simulatedGrade] : 0.0;
