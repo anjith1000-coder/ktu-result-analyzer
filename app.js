@@ -128,9 +128,9 @@ const branchNames = {
 
 // Default Grade Points Configuration
 const defaultGrades = {
-  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 },
-  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
+  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0, 'ABSENT': 0 },
+  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0, 'ABSENT': 0 },
+  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0, 'ABSENT': 0 }
 };
 
 function getGradePoints(grade, scheme) {
@@ -144,7 +144,7 @@ function getCompletedCredits(student) {
   let completed = 0;
   Object.keys(student.grades).forEach(subCode => {
     const grade = student.grades[subCode];
-    if (!['F', 'FE', 'I'].includes(grade)) {
+    if (!['F', 'FE', 'I', 'ABSENT'].includes(grade)) {
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       completed += credit;
     }
@@ -663,12 +663,15 @@ function parseKTUResultText(text) {
     const blockText = text.substring(startIndex, endIndex);
     
     // Find all subject grade patterns: e.g., MET416(C) or MAT201(A+)
-    const gradeRegex = /\b([A-Z0-9_\-/]+)\((O|S|A\+|A|B\+|B|C\+|C|D|P|F|FE|I)\)/g;
+    const gradeRegex = /\b([A-Z0-9_\-/]+)\((O|S|A\+|A|B\+|B|C\+|C|D|P|F|FE|I|[Aa][Bb][Ss][Ee][Nn][Tt]|[Aa][Bb])\)/g;
     let gradeMatch;
     const studentGrades = {};
     while ((gradeMatch = gradeRegex.exec(blockText)) !== null) {
       const subCode = gradeMatch[1].toUpperCase();
-      const grade = gradeMatch[2].toUpperCase();
+      let grade = gradeMatch[2].toUpperCase().trim();
+      if (grade === 'AB') {
+        grade = 'ABSENT';
+      }
       studentGrades[subCode] = grade;
       
       // If subject was not mapped to a name yet, initialize with code as placeholder name
@@ -754,7 +757,7 @@ function processParsedData() {
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       
       totalSubjects++;
-      if (['F', 'FE', 'I'].includes(grade)) {
+      if (['F', 'FE', 'I', 'ABSENT'].includes(grade)) {
         backlogs++;
       } else {
         passedSubjects++;
@@ -1089,7 +1092,7 @@ function renderDashboardCharts() {
         subjectStats[subCode] = { registered: 0, failed: 0 };
       }
       subjectStats[subCode].registered++;
-      if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+      if (['F', 'FE', 'I', 'ABSENT'].includes(student.grades[subCode])) {
         subjectStats[subCode].failed++;
       }
     });
@@ -1323,7 +1326,7 @@ function renderSubjectsTable() {
       
       const grade = student.grades[subCode];
       subjectAgg[subCode].registered++;
-      if (['F', 'FE', 'I'].includes(grade)) {
+      if (['F', 'FE', 'I', 'ABSENT'].includes(grade)) {
         subjectAgg[subCode].failed++;
       } else {
         subjectAgg[subCode].passed++;
@@ -1458,7 +1461,7 @@ function renderStudentsTable() {
     let actionsHtml = "";
     if (stud.backlogs > 0) {
       const failedSubs = Object.keys(stud.grades)
-        .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
+        .filter(code => ['F', 'FE', 'I', 'ABSENT'].includes(stud.grades[code]))
         .map(code => `<span class="backlog-badge" style="background-color: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.75rem; font-family: monospace; font-weight: 600; margin-right: 0.25rem;">[${code}]</span>`)
         .join('');
       actionsHtml = `<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">${failedSubs} <button class="btn btn-accent" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="viewStudentDetails('${stud.id}')">View Details</button></div>`;
@@ -1473,7 +1476,7 @@ function renderStudentsTable() {
       grade: student.grades[code]
     }));
     const totalCount = visibleSubjects.length;
-    const passedCount = visibleSubjects.filter(sub => !['F', 'FE', 'I'].includes(sub.grade)).length;
+    const passedCount = visibleSubjects.filter(sub => !['F', 'FE', 'I', 'ABSENT'].includes(sub.grade)).length;
 
     tr.innerHTML = `
       <td style="text-align: center;"><span class="rank-badge ${badgeClass}">${stud.classRank}</span></td>
@@ -1529,7 +1532,7 @@ function renderBacklogsView() {
     tbodyMax.innerHTML = `<tr><td colspan="${hasNames ? 6 : 5}" style="text-align:center; color:var(--text-muted);">No backlogs recorded! Outstanding campus performance.</td></tr>`;
   } else {
     topBacklogStudents.forEach(stud => {
-      const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I'].includes(stud.grades[code])).join(', ');
+      const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I', 'ABSENT'].includes(stud.grades[code])).join(', ');
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -1563,7 +1566,7 @@ function renderBacklogsView() {
         subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
       }
       subjectAgg[subCode].registered++;
-      if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+      if (['F', 'FE', 'I', 'ABSENT'].includes(student.grades[subCode])) {
         subjectAgg[subCode].failed++;
       }
     });
@@ -1712,10 +1715,11 @@ const maxerGradePoints = {
   'P': 5.5,
   'F': 0.0,
   'FE': 0.0,
-  'I': 0.0
+  'I': 0.0,
+  'ABSENT': 0.0
 };
 
-const maxerGradesList = ['F', 'FE', 'I', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
+const maxerGradesList = ['F', 'FE', 'I', 'ABSENT', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
 
 function openSgpaMaxer(studentId) {
   const student = state.students.find(s => s.id === studentId);
@@ -1762,7 +1766,7 @@ function openSgpaMaxer(studentId) {
       const currentPts = maxerGradePoints[currentGrade] || 0.0;
       
       let allowedGrades = maxerGradesList.filter(g => {
-        if (['F', 'FE', 'I'].includes(currentGrade)) {
+        if (['F', 'FE', 'I', 'ABSENT'].includes(currentGrade)) {
           return true;
         }
         return maxerGradePoints[g] >= currentPts;
@@ -1926,7 +1930,7 @@ function exportToExcelDirect() {
             };
           }
           subjectAgg[subCode].registered++;
-          if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
+          if (['F', 'FE', 'I', 'ABSENT'].includes(student.grades[subCode])) {
             subjectAgg[subCode].failed++;
           } else {
             subjectAgg[subCode].passed++;
@@ -2085,7 +2089,7 @@ function exportToExcelDirect() {
                             || branchNames[stud.branch] 
                             || stud.branch;
           const failedCodes = Object.keys(stud.grades)
-            .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
+            .filter(code => ['F', 'FE', 'I', 'ABSENT'].includes(stud.grades[code]))
             .join(', ') || 'None';
           const academicStatus = stud.isSupply ? 'Supplementary Candidate' : 'Regular Supply';
           backlogTrackerRows += `
@@ -2584,7 +2588,7 @@ function renderUnivMaxerStudentData() {
       const currentPts = maxerGradePoints[currentGrade] || 0.0;
       
       // KTU full mapping sequence (ascending order: I, FE, F, P, D, C, C+, B, B+, A, A+, S)
-      const fullGradesSequence = ['I', 'FE', 'F', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
+      const fullGradesSequence = ['I', 'FE', 'F', 'ABSENT', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
       
       // Sort in descending order for the dropdown choices representation
       const sortedGrades = [...fullGradesSequence].sort((a, b) => maxerGradePoints[b] - maxerGradePoints[a]);
