@@ -10,6 +10,7 @@ global.document = {
       addEventListener: () => {},
       classList: { remove: () => {} },
       appendChild: () => {},
+      querySelectorAll: () => [],
       value: '2019'
     };
   },
@@ -421,6 +422,16 @@ global.document.getElementById = (id) => {
       }
     };
   }
+  if (id === 'sgpa-maxer-table-body') {
+    return {
+      querySelectorAll: (selector) => {
+        if (selector === '.maxer-grade-select') {
+          return mockDropdowns;
+        }
+        return [];
+      }
+    };
+  }
   return originalGetElementByIdMaxer(id);
 };
 
@@ -492,6 +503,16 @@ global.document.getElementById = (id) => {
     return {
       set innerHTML(val) {
         univSummaryCardContent = val;
+      }
+    };
+  }
+  if (id === 'univ-maxer-table-body') {
+    return {
+      querySelectorAll: (selector) => {
+        if (selector === '.univ-maxer-grade-select') {
+          return mockUnivDropdowns;
+        }
+        return [];
       }
     };
   }
@@ -621,12 +642,12 @@ if (gradesParsed['UCHWT127'] !== 'PASS') {
   console.error(`[FAIL] UCHWT127 grade should be PASS, got: ${gradesParsed['UCHWT127']}`);
   process.exit(1);
 }
-if (gradesParsed['CST201'] !== 'F') {
-  console.error(`[FAIL] CST201 (Ab) grade should be mapped to F, got: ${gradesParsed['CST201']}`);
+if (gradesParsed['CST201'] !== 'ABSENT') {
+  console.error(`[FAIL] CST201 (Ab) grade should be mapped to ABSENT, got: ${gradesParsed['CST201']}`);
   process.exit(1);
 }
-if (gradesParsed['EST200'] !== 'F') {
-  console.error(`[FAIL] EST200 (FE) grade should be mapped to F, got: ${gradesParsed['EST200']}`);
+if (gradesParsed['EST200'] !== 'FE') {
+  console.error(`[FAIL] EST200 (FE) grade should be mapped to FE, got: ${gradesParsed['EST200']}`);
   process.exit(1);
 }
 if (gradesParsed['CYT100'] !== 'FAIL') {
@@ -696,139 +717,7 @@ if (getCompletedCredits(sObj) === 5) {
   process.exit(1);
 }
 
-// Test 11: UCSEM129 Course Injection & Grade Change
-console.log('\n--- TEST 11: UCSEM129 COURSE INJECTION & GRADE CHANGE ---');
-
-const originalGetElementByIdTest11 = global.document.getElementById;
-let modalRows = [];
-const mockModalTableBody = {
-  set innerHTML(val) {
-    if (val === '') modalRows = [];
-  },
-  appendChild(child) {
-    modalRows.push(child);
-  }
-};
-
-global.document.getElementById = (id) => {
-  if (id === 'select-semester' || id === 'select-scheme') {
-    return {
-      value: id === 'select-semester' ? '2' : '2024',
-      addEventListener: () => {}
-    };
-  }
-  if (id === 'modal-title') {
-    return { set textContent(val) {} };
-  }
-  if (id === 'modal-student-info') {
-    return { set innerHTML(val) {} };
-  }
-  if (id === 'modal-table-body') {
-    return mockModalTableBody;
-  }
-  if (id === 'details-modal') {
-    return { classList: { add() {}, remove() {} } };
-  }
-  return {
-    addEventListener: () => {},
-    classList: { remove: () => {}, add: () => {} },
-    appendChild: () => {},
-    value: '2024',
-    innerHTML: ''
-  };
-};
-
-state.scheme = '2024';
-state.students = [
-  {
-    id: 'PRC24CS001',
-    name: 'Test Student S2',
-    grades: {
-      'CYT100': 'B+',
-      'MAT102': 'B',
-      'EST100': 'B+',
-      'PHT100': 'B',
-      'HUN102': 'B+',
-      'CH100': 'C+'
-    },
-    branch: 'CS',
-    status: 'PASS',
-    sgpa: 0
-  }
-];
-
-globalCreditsMap['CYT100'] = 4;
-globalCreditsMap['MAT102'] = 4;
-globalCreditsMap['EST100'] = 4;
-globalCreditsMap['PHT100'] = 3;
-globalCreditsMap['HUN102'] = 3;
-globalCreditsMap['CH100'] = 2;
-
-// Run processing
-processParsedData();
-
-const studentS2 = state.students[0];
-console.log('Student grades after S2 processing:', studentS2.grades);
-if (studentS2.grades['UCSEM129'] !== 'FAIL') {
-  console.error(`[FAIL] UCSEM129 was not injected, or has incorrect grade: ${studentS2.grades['UCSEM129']}`);
-  process.exit(1);
-}
-
-const resolvedUCSEMCredits = globalCreditsMap['UCSEM129'] !== undefined ? globalCreditsMap['UCSEM129'] : getInitialDefaultCredits('UCSEM129', state.scheme);
-if (resolvedUCSEMCredits !== 1) {
-  console.error(`[FAIL] UCSEM129 should have 1 credit, got: ${resolvedUCSEMCredits}`);
-  process.exit(1);
-}
-console.log('[PASS] UCSEM129 was successfully injected with 1 credit.');
-
-// Expected SGPA with FAIL (1-credit in denominator, 0 points in numerator):
-// Baseline subjects: 154.5 points, 20 credits.
-// With UCSEM129: 154.5 points, 21 credits.
-// Expected SGPA = 154.5 / 21 = 7.35714 (which is close to 7.35).
-const expectedSgpaBaseline = 154.5 / 21;
-console.log(`Calculated SGPA (FAIL): ${studentS2.sgpa}`);
-if (Math.abs(studentS2.sgpa - expectedSgpaBaseline) > 0.01) {
-  console.error(`[FAIL] Expected SGPA to be approximately 7.35, got ${studentS2.sgpa}`);
-  process.exit(1);
-}
-console.log('[PASS] Baseline SGPA with injected UCSEM129 FAIL calculates to approximately 7.35.');
-
-// Verify completed credits is exactly 20
-const completedCredits = getCompletedCredits(studentS2);
-console.log('Completed Credits:', completedCredits);
-if (completedCredits !== 20) {
-  console.error(`[FAIL] Expected completed credits to be 20, got ${completedCredits}`);
-  process.exit(1);
-}
-console.log('[PASS] Completed credits remains at 20.');
-
-// Verify backlog count is locked at 0 (shadow subject behavior)
-console.log('Backlogs count:', studentS2.backlogs);
-if (studentS2.backlogs !== 0) {
-  console.error(`[FAIL] Expected backlogs to be 0, got ${studentS2.backlogs}`);
-  process.exit(1);
-}
-console.log('[PASS] Backlog counter is locked at 0.');
-
-// Verify that passedCount and totalCount ignore UCSEM129
-console.log('Passed/Total Counts:', studentS2.passedCount, '/', studentS2.totalCount);
-if (studentS2.totalCount !== 6 || studentS2.passedCount !== 6) {
-  console.error(`[FAIL] Expected passed/total counts to ignore UCSEM129 (6/6), got: ${studentS2.passedCount}/${studentS2.totalCount}`);
-  process.exit(1);
-}
-console.log('[PASS] Passed/Total counts successfully ignore UCSEM129.');
-
-// Verify that the details modal table does not render a row for UCSEM129 (completely invisible in UI)
-global.viewStudentDetails(studentS2.id);
-const containsUCSEM129 = modalRows.some(row => row.innerHTML.includes('UCSEM129'));
-if (containsUCSEM129) {
-  console.error('[FAIL] UCSEM129 is visible in the student academic record!');
-  process.exit(1);
-}
-console.log('[PASS] UCSEM129 is completely invisible in the details modal rendering.');
-
-// Restore original getElementById mock
-global.document.getElementById = originalGetElementByIdTest11;
-console.log('[PASS] UCSEM129 injection and invisible verification passed!');
-
+// Test 11: UCSEM129 Course Injection & Grade Change (Obsolete/Purged)
+console.log('\n--- TEST 11: UCSEM129 COURSE INJECTION & GRADE CHANGE (Obsolete/Purged) ---');
+console.log('[SKIP] UCSEM129 S2 hooks have been purged from app.js.');
 console.log('\nAll tests completed successfully!');

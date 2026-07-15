@@ -76,7 +76,6 @@ function getInitialDefaultCredits(courseCode, scheme) {
   }
   
   if (scheme === '2024') {
-    if (code.startsWith('UC')) return 1;
     // Step 1: Lab Detection (Highest Priority)
     if (code.length >= 5 && code[4] === 'L') {
       const numStr = code.substring(5, 8);
@@ -129,9 +128,9 @@ const branchNames = {
 
 // Default Grade Points Configuration
 const defaultGrades = {
-  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0, 'ABSENT': 0, 'WITHHELD': 0 },
-  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0, 'ABSENT': 0, 'WITHHELD': 0 },
-  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0, 'ABSENT': 0, 'WITHHELD': 0 }
+  '2015': { 'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'D': 5.5, 'P': 5, 'F': 0, 'FE': 0, 'I': 0 },
+  '2019': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 },
+  '2024': { 'S': 10, 'A+': 9.0, 'A': 8.5, 'B+': 8.0, 'B': 7.5, 'C+': 7.0, 'C': 6.5, 'D': 6.0, 'P': 5.5, 'F': 0, 'FE': 0, 'I': 0 }
 };
 
 function getGradePoints(grade, scheme) {
@@ -139,18 +138,6 @@ function getGradePoints(grade, scheme) {
   const s = scheme || state.scheme || '2019';
   const pointsMap = defaultGrades[s] || defaultGrades['2019'];
   return pointsMap[g] !== undefined ? pointsMap[g] : 0.0;
-}
-
-function getCompletedCredits(student) {
-  let completed = 0;
-  Object.keys(student.grades).forEach(subCode => {
-    const grade = student.grades[subCode];
-    if (!['F', 'FE', 'I', 'ABSENT', 'WITHHELD', 'FAIL'].includes(grade)) {
-      const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
-      completed += credit;
-    }
-  });
-  return completed;
 }
 
 // Initialize the Application
@@ -187,11 +174,6 @@ function recalculateAndRefresh() {
 function recalculateEverything() {
   recalculateAndRefresh();
 }
-
-function recalculateSGPA() {
-  recalculateEverything();
-}
-window.recalculateSGPA = recalculateSGPA;
 
 function switchTab(tabId) {
   const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
@@ -664,17 +646,12 @@ function parseKTUResultText(text) {
     const blockText = text.substring(startIndex, endIndex);
     
     // Find all subject grade patterns: e.g., MET416(C) or MAT201(A+)
-    const gradeRegex = /\b([A-Z0-9_\-/]+)\((O|S|A\+|A|B\+|B|C\+|C|D|P|F|FE|I|[Aa][Bb][Ss][Ee][Nn][Tt]|[Aa][Bb]|[Ww][Ii][Tt][Hh][Hh][Ee][Ll][Dd]|[Ww][Hh]|[Ww]|[Pp][Aa][Ss][Ss]|[Ff][Aa][Ii][Ll])\)/g;
+    const gradeRegex = /\b([A-Z0-9_\-/]+)\((O|S|A\+|A|B\+|B|C\+|C|D|P|F|FE|I)\)/g;
     let gradeMatch;
     const studentGrades = {};
     while ((gradeMatch = gradeRegex.exec(blockText)) !== null) {
       const subCode = gradeMatch[1].toUpperCase();
-      let grade = gradeMatch[2].toUpperCase().trim();
-      if (grade === 'AB') {
-        grade = 'ABSENT';
-      } else if (grade === 'WITHHELD' || grade === 'WH' || grade === 'W') {
-        grade = 'WITHHELD';
-      }
+      const grade = gradeMatch[2].toUpperCase();
       studentGrades[subCode] = grade;
       
       // If subject was not mapped to a name yet, initialize with code as placeholder name
@@ -760,18 +737,16 @@ function processParsedData() {
       const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
       
       totalSubjects++;
-      if (['F', 'FE', 'I', 'ABSENT', 'WITHHELD', 'FAIL'].includes(grade)) {
+      if (['F', 'FE', 'I'].includes(grade)) {
         backlogs++;
       } else {
         passedSubjects++;
       }
       
-      // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator; PASS is neutral)
-      if (grade !== 'PASS') {
-        let points = getGradePoints(grade, state.scheme);
-        earnedGradePoints += points * credit;
-        totalCredits += credit;
-      }
+      // Calculate grade points (failed courses count as 0, but credits count in SGPA denominator)
+      let points = getGradePoints(grade, state.scheme);
+      earnedGradePoints += points * credit;
+      totalCredits += credit;
     });
     
     student.backlogs = backlogs;
@@ -1042,8 +1017,7 @@ function renderDashboardCharts() {
   Object.keys(state.gradePoints).forEach(g => gradeCounts[g] = 0);
   
   activeStudents.forEach(student => {
-    Object.keys(student.grades).forEach(subCode => {
-      const grade = student.grades[subCode];
+    Object.values(student.grades).forEach(grade => {
       if (gradeCounts[grade] !== undefined) gradeCounts[grade]++;
     });
   });
@@ -1097,7 +1071,7 @@ function renderDashboardCharts() {
         subjectStats[subCode] = { registered: 0, failed: 0 };
       }
       subjectStats[subCode].registered++;
-      if (['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(student.grades[subCode])) {
+      if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
         subjectStats[subCode].failed++;
       }
     });
@@ -1331,16 +1305,15 @@ function renderSubjectsTable() {
       
       const grade = student.grades[subCode];
       subjectAgg[subCode].registered++;
-      if (['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(grade)) {
+      if (['F', 'FE', 'I'].includes(grade)) {
         subjectAgg[subCode].failed++;
       } else {
         subjectAgg[subCode].passed++;
       }
       
-      if (subjectAgg[subCode].gradeDistribution[grade] === undefined) {
-        subjectAgg[subCode].gradeDistribution[grade] = 0;
+      if (subjectAgg[subCode].gradeDistribution[grade] !== undefined) {
+        subjectAgg[subCode].gradeDistribution[grade]++;
       }
-      subjectAgg[subCode].gradeDistribution[grade]++;
     });
   });
 
@@ -1466,7 +1439,7 @@ function renderStudentsTable() {
     let actionsHtml = "";
     if (stud.backlogs > 0) {
       const failedSubs = Object.keys(stud.grades)
-        .filter(code => ['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(stud.grades[code]))
+        .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
         .map(code => `<span class="backlog-badge" style="background-color: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.75rem; font-family: monospace; font-weight: 600; margin-right: 0.25rem;">[${code}]</span>`)
         .join('');
       actionsHtml = `<div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">${failedSubs} <button class="btn btn-accent" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; height: fit-content;" onclick="viewStudentDetails('${stud.id}')">View Details</button></div>`;
@@ -1475,14 +1448,6 @@ function renderStudentsTable() {
     }
 
     const tr = document.createElement('tr');
-    const student = stud;
-    const visibleSubjects = Object.keys(student.grades).map(code => ({
-      courseCode: code,
-      grade: student.grades[code]
-    }));
-    const totalCount = visibleSubjects.length;
-    const passedCount = visibleSubjects.filter(sub => !['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(sub.grade)).length;
-
     tr.innerHTML = `
       <td style="text-align: center;"><span class="rank-badge ${badgeClass}">${stud.classRank}</span></td>
       <td><strong>${stud.id}</strong></td>
@@ -1537,7 +1502,7 @@ function renderBacklogsView() {
     tbodyMax.innerHTML = `<tr><td colspan="${hasNames ? 6 : 5}" style="text-align:center; color:var(--text-muted);">No backlogs recorded! Outstanding campus performance.</td></tr>`;
   } else {
     topBacklogStudents.forEach(stud => {
-      const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(stud.grades[code])).join(', ');
+      const failedSubs = Object.keys(stud.grades).filter(code => ['F', 'FE', 'I'].includes(stud.grades[code])).join(', ');
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -1571,7 +1536,7 @@ function renderBacklogsView() {
         subjectAgg[subCode] = { code: subCode, name: state.subjects[subCode] || subCode, registered: 0, failed: 0 };
       }
       subjectAgg[subCode].registered++;
-      if (['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(student.grades[subCode])) {
+      if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
         subjectAgg[subCode].failed++;
       }
     });
@@ -1669,7 +1634,7 @@ window.viewStudentDetails = function(studentId) {
     </div>
     <div class="detail-item">
       <span>Backlogs</span>
-      <span style="color: ${student.backlogs > 0 ? 'var(--danger)' : 'var(--success)'};">${student.backlogs > 0 ? student.backlogs + ' Supplies' : '0 Supplies'}</span>
+      <span style="color: ${student.backlogs > 0 ? 'var(--danger)' : 'var(--success)'};">${student.backlogs > 0 ? student.backlogs + ' Supplies' : 'Clear Pass'}</span>
     </div>
   `;
 
@@ -1684,14 +1649,12 @@ window.viewStudentDetails = function(studentId) {
 
     const gClass = grade.toLowerCase().replace('+', 'plus');
 
-    let gradeBadgeHtml = `<span class="grade-badge ${gClass}">${grade}</span>`;
-
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><span class="subject-badge">${subCode}</span></td>
       <td><strong>${name}</strong></td>
       <td style="text-align: center;">${credits}</td>
-      <td style="text-align: center;">${gradeBadgeHtml}</td>
+      <td style="text-align: center;"><span class="grade-badge ${gClass}">${grade}</span></td>
       <td style="text-align: center;">${points.toFixed(1)}</td>
     `;
     tbody.appendChild(tr);
@@ -1720,12 +1683,10 @@ const maxerGradePoints = {
   'P': 5.5,
   'F': 0.0,
   'FE': 0.0,
-  'I': 0.0,
-  'ABSENT': 0.0,
-  'WITHHELD': 0.0
+  'I': 0.0
 };
 
-const maxerGradesList = ['WITHHELD', 'F', 'FE', 'I', 'ABSENT', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
+const maxerGradesList = ['F', 'FE', 'I', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
 
 function openSgpaMaxer(studentId) {
   const student = state.students.find(s => s.id === studentId);
@@ -1772,7 +1733,7 @@ function openSgpaMaxer(studentId) {
       const currentPts = maxerGradePoints[currentGrade] || 0.0;
       
       let allowedGrades = maxerGradesList.filter(g => {
-        if (['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(currentGrade)) {
+        if (['F', 'FE', 'I'].includes(currentGrade)) {
           return true;
         }
         return maxerGradePoints[g] >= currentPts;
@@ -1831,10 +1792,8 @@ function calculateMaxedSgpa(student) {
   let baselineWeightedPoints = 0;
   let simulatedWeightedPoints = 0;
 
-  const tbody = document.getElementById('sgpa-maxer-table-body');
-  const selects = tbody.querySelectorAll('.maxer-grade-select');
-
-  selects.forEach(select => {
+  const dropdowns = document.querySelectorAll('.maxer-grade-select');
+  dropdowns.forEach(select => {
     const subCode = select.dataset.subject;
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
@@ -1936,7 +1895,7 @@ function exportToExcelDirect() {
             };
           }
           subjectAgg[subCode].registered++;
-          if (['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(student.grades[subCode])) {
+          if (['F', 'FE', 'I'].includes(student.grades[subCode])) {
             subjectAgg[subCode].failed++;
           } else {
             subjectAgg[subCode].passed++;
@@ -2047,6 +2006,18 @@ function exportToExcelDirect() {
       const sortedRegularStudents = [...regularStudents].sort((a, b) => b.sgpa - a.sgpa);
       const topStudentsList = sortedRegularStudents.slice(0, 15);
 
+      function getCompletedCredits(student) {
+        let completed = 0;
+        Object.keys(student.grades).forEach(subCode => {
+          const grade = student.grades[subCode];
+          if (!['F', 'FE', 'I'].includes(grade)) {
+            const credit = globalCreditsMap[subCode] !== undefined ? globalCreditsMap[subCode] : getInitialDefaultCredits(subCode, state.scheme);
+            completed += credit;
+          }
+        });
+        return completed;
+      }
+
       let topPerformersRows = "";
       if (topStudentsList.length === 0) {
         topPerformersRows = `
@@ -2095,7 +2066,7 @@ function exportToExcelDirect() {
                             || branchNames[stud.branch] 
                             || stud.branch;
           const failedCodes = Object.keys(stud.grades)
-            .filter(code => ['F', 'FE', 'I', 'ABSENT', 'WITHHELD'].includes(stud.grades[code]))
+            .filter(code => ['F', 'FE', 'I'].includes(stud.grades[code]))
             .join(', ') || 'None';
           const academicStatus = stud.isSupply ? 'Supplementary Candidate' : 'Regular Supply';
           backlogTrackerRows += `
@@ -2593,8 +2564,8 @@ function renderUnivMaxerStudentData() {
       const tr = document.createElement('tr');
       const currentPts = maxerGradePoints[currentGrade] || 0.0;
       
-      // KTU full mapping sequence (ascending order: WITHHELD, I, FE, F, P, D, C, C+, B, B+, A, A+, S)
-      const fullGradesSequence = ['WITHHELD', 'I', 'FE', 'F', 'ABSENT', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
+      // KTU full mapping sequence (ascending order: I, FE, F, P, D, C, C+, B, B+, A, A+, S)
+      const fullGradesSequence = ['I', 'FE', 'F', 'P', 'D', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S'];
       
       // Sort in descending order for the dropdown choices representation
       const sortedGrades = [...fullGradesSequence].sort((a, b) => maxerGradePoints[b] - maxerGradePoints[a]);
@@ -2633,10 +2604,8 @@ function calculateUnivMaxedSgpa(student) {
   let baselineWeightedPoints = 0;
   let simulatedWeightedPoints = 0;
 
-  const tbody = document.getElementById('univ-maxer-table-body');
-  const selects = tbody.querySelectorAll('.univ-maxer-grade-select');
-
-  selects.forEach(select => {
+  const dropdowns = document.querySelectorAll('.univ-maxer-grade-select');
+  dropdowns.forEach(select => {
     const subCode = select.dataset.subject;
     const credits = parseFloat(select.dataset.credits) || 0;
     const originalGrade = student.grades[subCode];
